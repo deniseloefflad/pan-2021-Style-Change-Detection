@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val
 from keras.utils import normalize
 from sklearn.utils import class_weight
 from sklearn.preprocessing import MinMaxScaler
-from complexitymeasures import get_complexity_measures
+from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from keras.callbacks import EarlyStopping
 import random
