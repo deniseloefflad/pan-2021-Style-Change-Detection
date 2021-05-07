@@ -15,7 +15,7 @@ import random
 import gensim
 from nltk.tokenize import word_tokenize
 
-import fasttext.util
+#import fasttext.util
 import warnings
 warnings.filterwarnings("ignore")
 nltk.download('punkt')
@@ -35,7 +35,9 @@ def get_labels(filename):
         changes = [1]  # set that 1 paragraph is always treated like a switch
         changes = changes + data['changes']
         changes = [[x] for x in changes]
-        labels = number_of_authors, structure, changes
+        authors_structure = data['paragraph-authors']
+        labels = number_of_authors, structure, changes, authors_structure
+
     return labels
 
 
@@ -210,16 +212,16 @@ def train_classifier(train_x, train_y, val_x, val_y, test_x):
     shape = train_x.shape[1:]
     unique_labels = np.array([0, 1])
     flattened_labels = train_y.flatten()
-    class_weights = class_weight.compute_sample_weight('balanced', unique_labels, flattened_labels)
-    sample_weights = np.array([class_weights[0] if x==0 else class_weights[1] for x in flattened_labels])
-    sample_weights = sample_weights.reshape((train_x.shape[1], train_x.shape[0])).transpose()
+    #class_weights = class_weight.compute_sample_weight('balanced', unique_labels, flattened_labels)
+    #sample_weights = np.array([class_weights[0] if x==0 else class_weights[1] for x in flattened_labels])
+    #sample_weights = sample_weights.reshape((train_x.shape[1], train_x.shape[0])).transpose()
     batch = 1
-
+    number_paragraphs = len(train_x[0])
     es = EarlyStopping(monitor='val_loss', patience=5, verbose=1)
     model = Sequential()
     model.add(layers.Masking(mask_value=0, input_shape=shape))
     model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
-    model.add(layers.TimeDistributed(layers.Dense(1, activation='sigmoid')))
+    model.add(layers.TimeDistributed(layers.Dense(number_paragraphs, activation='sigmoid')))
     model.compile(loss='binary_crossentropy', optimizer='adam')#, sample_weight_mode='temporal')
     model.summary()
     model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=1000, batch_size=batch, callbacks=[es], verbose=2)#,
@@ -271,10 +273,10 @@ if __name__ == "__main__":
     validation = True
 
 
-    fasttext.util.download_model('en', if_exists='ignore')  # English
-    ft = fasttext.load_model('cc.en.300.bin')
+    #fasttext.util.download_model('en', if_exists='ignore')  # English
+    #ft = fasttext.load_model('cc.en.300.bin')
+    #print(ft)
 
-    print(ft)
     if len(sys.argv) < 4:
         raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
 
@@ -293,28 +295,46 @@ if __name__ == "__main__":
     print("-------read folder -------------")
     val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs = read_data(validation_folder)
     print("-------read validation -------------")
+    val_labels_authors = [item[3] for item in val_labels]
+    labels_authors = [item[3] for item in labels]
+
     val_labels = [item[2] for item in val_labels]
     labels_style_change = [item[2] for item in labels]  # sc = style change
 
+
     #----------------- complexity measures
-    padded_compl_measures, padded_labels_style_change, padded_val_x, padded_val_y = padding(compl_measures_all,
-                                                                                            labels_style_change,
-                                                                                            val_compl_measures,
-                                                                                            val_labels)
-    normalized_compl = normalize(padded_compl_measures, axis=2, order=2)
-    normalied_validation = normalize(padded_val_x, axis=2, order=2)
-    eval_scores_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
-                                       scores)
+
+
+    def get_results_compl(compl_measures, labs, val_measures, val_labs, scrs):
+        """
+
+        :return:
+        """
+        padded_compl_measures, padded_labels_style_change, padded_val_x, padded_val_y = padding(compl_measures, labs,
+                                                                                            val_measures, val_labs)
+        normalized_compl = normalize(padded_compl_measures, axis=2, order=2)
+        normalied_validation = normalize(padded_val_x, axis=2, order=2)
+        eval_scores_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
+                                       scrs)
+        return eval_scores_compl
+
+    #eval_compl_style_change = get_results_compl(compl_measures_all, labels_style_change, val_compl_measures, val_labels, scores)
+    eval_compl_authors = get_results_compl(compl_measures_all, labels_authors, val_compl_measures, val_labels_authors,
+                                                scores)
 
     #----------------- embeddings
-    padded_embeddings, padded_val_x_embeddings, padded_val_y_embeddings = pad_embeddings(embedding_all_docs,
-                                                                                         val_embedding_all_docs,
-                                                                                         val_labels)
+    def get_results_embeddings(embedding_docs, val_embs, val_labs, scrs):
+        padded_embeddings, padded_val_x_embeddings, padded_val_y_embeddings = pad_embeddings(embedding_docs, val_embs,
+                                                                                             val_labs)
 
-    normalized_embeddings = normalize(padded_embeddings, axis=2, order=2)
-    normalized_val_emb = normalize(padded_val_x_embeddings, axis=2, order=2)
-    eval_scores_embeddings = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
-                                            padded_labels_style_change, scores)
+        normalized_embeddings = normalize(padded_embeddings, axis=2, order=2)
+        normalized_val_emb = normalize(padded_val_x_embeddings, axis=2, order=2)
+        eval_scores_embeddings = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
+                                                padded_labels_style_change, scrs)
+        return eval_scores_embeddings
+
+    #eval_scores_embeddings = get_results_embeddings(embedding_all_docs, val_embedding_all_docs, val_labels, scores)
+    eval_embeddings_authors = get_results_embeddings(embedding_all_docs, val_embedding_all_docs, val_labels_authors, scores)
 
     #----------------- combined complexity feats & embeddings
     combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
