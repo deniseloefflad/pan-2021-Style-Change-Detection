@@ -1,4 +1,3 @@
-import nltk
 from nltk.corpus import stopwords
 from nltk import word_tokenize, Counter, pos_tag, sent_tokenize
 from math import sqrt

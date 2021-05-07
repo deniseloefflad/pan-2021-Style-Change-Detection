@@ -5,21 +5,17 @@ import numpy as np
 import sys
 from keras.models import Sequential
 from keras import layers
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.model_selection import train_test_split
 from keras.utils import normalize
 from sklearn.utils import class_weight
-from sklearn.preprocessing import MinMaxScaler
 from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from keras.callbacks import EarlyStopping
 import random
 import gensim
-import re
 from nltk.tokenize import word_tokenize
-from gensim.models import Word2Vec
-from gensim.models import FastText
-from gensim.models.keyedvectors import KeyedVectors
-from gensim.models.wrappers import FastText
+
+import fasttext.util
 import warnings
 warnings.filterwarnings("ignore")
 nltk.download('punkt')
@@ -274,8 +270,18 @@ if __name__ == "__main__":
     scores = (precision_score, recall_score, f1_score, accuracy_score)
     validation = True
 
+
+    fasttext.util.download_model('en', if_exists='ignore')  # English
+    ft = fasttext.load_model('cc.en.300.bin')
+
+    print(ft)
     if len(sys.argv) < 4:
         raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
+
+
+    
+
+
     folder = sys.argv[1]
     validation_folder = sys.argv[2]
     embeddings_dict = sys.argv[3]

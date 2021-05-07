@@ -1,4 +1,8 @@
 pan21/ 
+.vscode/
+# remove the data set and its parts 
+cc.en.300.bin.gz*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
