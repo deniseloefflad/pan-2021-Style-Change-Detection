@@ -1,0 +1,6 @@
+I followed this guide: https://www.lifehacker.com.au/2010/02/move-the-users-directory-in-windows-7/.
+One thing to remember, though, when in recovery mode and creating the junction. Make sure that the junction points to the correct drive letter in your Windows installation itself. It may be different in recovery. To keep things in order, I used diskpart to change drive letters to match my installation.
+I would also recommend moving just your user's directory. If for whatever reason it's inaccessible you won't be able to log in. In that case, it would benefit having the default administrator account still on C:\.
+I have had a lot of success using an NTFS junction to redirect the Users directory to another drive.
+The default location for User Profiles are C:\Users.  I would like to move this location to another drive (i.e. D:\Users).  I've already been able to customize the library locations, however there are other things that I like to migrate as well.  Is there a simple way to change the default location of the User Profiles?
+WARNING: Create a backup and a restore point before you try this. I messed up once and had to do a restore myself!

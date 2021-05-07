@@ -1,0 +1,5 @@
+What RFC 4862 states about prefix lifetimes has nothing to do with SLAAC, this is pure about how long on-link prefixes are valid to perform neighbor discovery.
+For prefix assignment using SLAAC (RFC 4862), the lifetimes are fully governed by the description in section 5.5.3. Router Advertisement Processing. To simplify:
+So in short, when it comes to deprecation you can make sure that a SLAAC address is no longer used for new connections (set preferred lifetime to 0) but you cannot kill ongoing sessions as long as the valid lifetime is running. Of course various implementations might provide administrative interfaces to forcefully remove an address, but that's outside of RFC scope.
+However, prefix is not forgotten immediately by host, at least if the implementation is robust and follows RFC4862. There are additional rules for prefix lifetime handling:
+As far as the RFC goes, you can put the preferred lifetime to anything, though 0 does not make sense. The valid lifetime cannot be 0 except when deprecating. Preferred must always be bigger than valid. So what time you put it is your own choice and depends on your use case.

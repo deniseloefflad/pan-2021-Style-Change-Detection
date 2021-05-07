@@ -1,0 +1,6 @@
+So i tried to mount it but is see only one "overlay" folder and bunch of files, i need to access my home folder.
+You can see your home partition, Just plug your SD Card and see the mounted drives (The one which have large space is your storage partition for this you can do df -h and see the mounted drives)
+If the file system is still in tact then you should be able to plug it into a linux system and read the files.
+Yesterday my raspberrypi was working fine, instead of shutting down properly just pulled the power plug. now when i turn on my raspberrypi it i see the red led on. but cannot ssh, i also have apache installed to i cannot see the localhost page as well. 
+just open it and write ip=192.168.1.23 (Or any ip "PS: better to check your netmask") at last of file  which will give static ip to your Pi and to which you can connect easily then try to boot it and try to ssh. it will ssh.
+From your post it appears you are using a linux distro, but you are looking at the wrong partition. Type "df" to show mounted file systems. You should have an entry for mmcblk0p1. You can also get information typing "mount". Can you post the results of these commands? Eventually we want to get the mmcblk0p2 mounted so we can run fsck on it to attempt to repair it.

@@ -1,0 +1,7 @@
+Do the split just once, what about someone send "bill@@hotmail.com"? your code will mark this as correct.
+Apparently, your code is not that "stylish" (you can see the PEP8 results here: http://pep8online.com/s/QbjC4Dx7)
+In the line where you do length = mail.split('@'), I think the best name is parts. Just make sure you have some edge cases acknowledge.
+If you are writing this code because you really need a mail validator, well, I suggest you to read this interesting post. 
+Raise exceptions and use loggers, when needed. Your function returns .group() anyway, either it's a valid or not valid email address. 
+If you are compiling your regular expression there is no improvement if you do this inside your method, move your regular expression declaration outside the method so it will not be compile it again every time you call 'email_check'
+Or even better add this rule to the regular expression, like ^[a-z]{3,128}$ where it reads any characters from a to z, at least three times found and no more than 128 times.

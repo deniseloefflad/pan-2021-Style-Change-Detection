@@ -1,0 +1,6 @@
+If slapadd succeeds without errors, you can migrate to the modified slapd.d directory. According to this thread slapadd only adds data, so overwriting the original slapd.d directory contents is not possible. Therefore we need to move the directories around a bit:
+Modifying cn=config the proper way with ldapmodify is very painful, and you'll end up accumulating tons of carefully hand-crafted, single-purpose, disposable LDIF files. Compared to just editing slapd.conf it's a nightmare. Regardless, if you need to make runtime configuration changes, ldapmodify is  your only option. However, if you can afford some downtime, you have two other poisons to choose from.
+Second, there's a less unsupported method which involves use of slapcat and slapadd (modified from these instructions):
+If you change the LDIF files in cn=config manually, their contents and checksums won't match, which is not fatal, but is annoying when using tools such as slapcat. 
+If slapd starts, it should work ok, but it's always a good idea to tail /var/log/syslog when starting the service:
+First, there's the highly unsupported but quick and dirty method which works fine for initial OpenLDAP configuration if you know what you're doing:

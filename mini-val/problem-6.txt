@@ -1,0 +1,8 @@
+I have four ext4 partitions on a newly formatted gpt disk. Eventhough I have no files in these partitions a lot of space is used up already. 
+The file system needs to use some space to track your files. It depends on each type of FS, but a couple of things are bad sectors and the freespace table.
+Highlighted in blue is a partition that has less used space than a smaller partition right above it. What could cause this?
+The root directory is also duplicated a certain number of times (you can tune that, although I never did, the defaults are generally just fine.) The duplicated sectors (such as your freespace table) are there to make sure that if one of the sectors that goes bad happens to be part of such a table, your file system continues to work.
+Because this space is unusable for regular users, it's likely that gparted just doesn't count it as "available" (as it isn't). You can adjust the reserve using tune2fs -m 5 /dev/sdg3.
+In ext2/3/4, a certain amount of space (5% by default) is kept in reserve – processes without root privileges can only fill the disk up to 95%, at which point they start getting "no space" errors while privileged services can continue running just fine.
+In particular, if the filesystem is not shared between system and users (e.g. if it's a dedicated OS-only partition like /opt, or it's a dedicated user data partition like /home), then it is completely safe to disable the reservation (tune2fs -m 0).
+These duplicates do not show up as files, but they are shown when you format the drive (usually). They give you the sector number and sizes, etc.

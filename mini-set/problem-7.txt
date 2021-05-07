@@ -1,0 +1,7 @@
+Old question, but it sounds like you can read both of the disks, just not at the same time. If this is the case, I suspect that mdadm would be happy to run your array if one or both disks were an image file instead of a hardware disk, assuming that mdadm could run the array if both disks were hardware.
+This is a common issue and you have uncommonly good potential for recovery.  Most modern drives have PCB locked to serial number.  If you can operate either drive from the samePCB then make images of each drive using Quetek File Scavenger.  
+RAID 0 caused half of data to be on one disk and half on other. You literally have block of data interleaving one another (in order to maximize performance). I am not aware of any tool that can come even close to untangling that mess and even if there was such tool, you can hope for 64K block recovery topmost.
+Next time, try RAID 1. You get less space, but the fault tolerance is n-1 drives, so you'll have a much less chance of losing data.
+Once both images are made you should be able to mount both images and recover data using professional version. This costs money but is well worth while if needed. 
+You cannot recover a RAID 0 drive that has failed. RAID 0 is striped, meaning the data is split. It's like having only half of a piece of paper that was ripped in two... there's no way to know what was on the other half without actually having it.
+Best chance is either finding same electronics (and hoping that electronics is all that failed) or recovering data from backup.
