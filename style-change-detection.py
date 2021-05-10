@@ -48,7 +48,7 @@ def get_word_embeddings(line):
     line = line.replace("/", " / ")
     paragraph = word_tokenize(line)  # tokenize paragraph
     words = [word for word in paragraph if
-             word in embedding_model.vocab]  # remove out-of-vocabulary words from pretrained embeddings
+             word in embedding_model.index_to_key]  # remove out-of-vocabulary words from pretrained embeddings
     c = np.zeros(300, dtype=int)
     if words:
         return np.mean(embedding_model[words], axis=0)
@@ -271,10 +271,10 @@ if __name__ == "__main__":
     validation = True
 
 
-    fasttext.util.download_model('en', if_exists='ignore')  # English
-    ft = fasttext.load_model('cc.en.300.bin')
+    #fasttext.util.download_model('en', if_exists='ignore')  # English
+    #ft = fasttext.load_model('cc.en.300.bin')
 
-    print(ft)
+    #print(ft)
     if len(sys.argv) < 4:
         raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
 
