@@ -21,25 +21,40 @@ warnings.filterwarnings("ignore")
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 
+np.set_printoptions(threshold=np.inf)
 
-def get_labels(filename):
+scores = (precision_score, recall_score, f1_score, accuracy_score)
+embedding_model = None
+
+
+
+def get_labels(filename, return_labels = None):
     """
     :param filename:
     :return:
     """
     number_of_authors, structure, changes = list(), list(), list()
+    labels = {}
     with open(filename) as json_file:
         data = json.load(json_file)
-        number_of_authors.append(data['authors'])
-        structure = data['structure']
+        # process data and give correct format
         changes = [1]  # set that 1 paragraph is always treated like a switch
         changes = changes + data['changes']
         changes = [[x] for x in changes]
-        labels = number_of_authors, structure, changes
-    return labels
+
+        number_of_authors.append(data['authors'])
+        data['authors'] = number_of_authors
+        # return all data or requested data
+        if return_labels == None:
+            data['changes'] = changes
+            return data
+        else:      
+            for label in return_labels: 
+                labels[label] = data[label]
+            return labels
 
 
-def get_word_embeddings(line):
+def get_word_embeddings(line, embedding_model):
     """
     :param line: string
     :return:
@@ -48,7 +63,7 @@ def get_word_embeddings(line):
     line = line.replace("/", " / ")
     paragraph = word_tokenize(line)  # tokenize paragraph
     words = [word for word in paragraph if
-             word in embedding_model.vocab]  # remove out-of-vocabulary words from pretrained embeddings
+             word in embedding_model.index_to_key]  # remove out-of-vocabulary words from pretrained embeddings
     c = np.zeros(300, dtype=int)
     if words:
         return np.mean(embedding_model[words], axis=0)
@@ -56,7 +71,7 @@ def get_word_embeddings(line):
         return c
 
 
-def read_data(folder):
+def read_data(folder, embedding_model):
     """get complexity measures for every paragraph & labels
     :return:
     complexity_measures_all_docs: array with complexity measures for all texts, for all paragraphs
@@ -84,7 +99,7 @@ def read_data(folder):
                         complexity_measures_text.append(complexity_measures_par)
                         text_ids.append(i)
                         if line:
-                            par_embedding = get_word_embeddings(line)
+                            par_embedding = get_word_embeddings(line, embedding_model)
                         file.append(par_embedding)
                 embedding_all_docs.append(file)
 
@@ -97,8 +112,24 @@ def read_data(folder):
                 labels.append(labels_json)
     return complexity_measures_all_docs, all_text_ids, labels, embedding_all_docs
 
+# anonymous function to pad a given input and labels
+def _pad(x, labels, padding_x, padding_y, pad_len, target):
 
-def pad_embeddings(files, validations_x, validation_labels):
+    padded_x = []
+    padded_y = []
+    for i, elem in enumerate(x):
+        start_size = len(elem)
+        elem += (pad_len - start_size) * [padding_x]
+        if (target == 'multi-author'):
+            elem_y = [[labels[i]]] * start_size + (pad_len - start_size) * [padding_y]
+        elif (target == 'changes'):
+            elem_y = labels[i] + (pad_len - len(labels[i])) * [padding_y]
+        padded_x.append(elem)
+        padded_y.append(elem_y)
+    return padded_x, padded_y
+
+
+def pad_embeddings(files, validations_x, validation_labels, target):
     """
     :param files:
     :param validations_x:
@@ -117,16 +148,18 @@ def pad_embeddings(files, validations_x, validation_labels):
         for i in range(pad_num):
             file.append(c)
 
-    for i, elem in enumerate(validations_x):
-        elem += (longest_file - len(elem)) * [c]
-        elem_y = validation_labels[i] + (longest_file - len(validation_labels[i])) * [[0]]
-        padded_val_x.append(elem)
-        padded_val_y.append(elem_y)
+    padded_val_x, padded_val_y = _pad(validations_x, validation_labels, c, [0], longest_file, target)
+
+    # for i, elem in enumerate(validations_x):
+    #     elem += (longest_file - len(elem)) * [c]
+    #     elem_y = validation_labels[i] + (longest_file - len(validation_labels[i])) * [[0]]
+    #     padded_val_x.append(elem)
+    #     padded_val_y.append(elem_y)
 
     return np.array(files), padded_val_x, padded_val_y
 
 
-def padding(x, labels, val_x, val_labels):
+def padding(x, labels, val_x, val_labels, target):
     """
     padding data
     :param x: x data
@@ -145,17 +178,11 @@ def padding(x, labels, val_x, val_labels):
     max_val = len(max(val_x, key=len))
     max_len = max(max_x, max_val)
 
-    for i, elem in enumerate(x):
-        elem += (max_len - len(elem)) * [pad_compl_measures]
-        elem_y = labels[i] + (max_len - len(labels[i])) * [pad_style_change]
-        padded_x.append(elem)
-        padded_y.append(elem_y)
+   
 
-    for i, elem in enumerate(val_x):
-        elem += (max_len - len(elem)) * [pad_compl_measures]
-        elem_y = val_labels[i] + (max_len - len(val_labels[i])) * [pad_style_change]
-        padded_val_x.append(elem)
-        padded_val_y.append(elem_y)
+    padded_x, padded_y = _pad(x, labels, pad_compl_measures, pad_style_change, max_len, target)
+    padded_val_x, padded_val_y = _pad(val_x, val_labels, pad_compl_measures, pad_style_change, max_len, target)
+
     return padded_x, padded_y, padded_val_x, padded_val_y
 
 
@@ -208,26 +235,30 @@ def train_classifier(train_x, train_y, val_x, val_y, test_x):
     val_x = np.array(val_x)
     val_y = np.array(val_y)
     shape = train_x.shape[1:]
+
     unique_labels = np.array([0, 1])
     flattened_labels = train_y.flatten()
     class_weights = class_weight.compute_sample_weight('balanced', unique_labels, flattened_labels)
     sample_weights = np.array([class_weights[0] if x==0 else class_weights[1] for x in flattened_labels])
+
+    # shape can be one dimensional iff target is multi-author
     sample_weights = sample_weights.reshape((train_x.shape[1], train_x.shape[0])).transpose()
+  
     batch = 1
 
-    es = EarlyStopping(monitor='val_loss', patience=5, verbose=1)
+    es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
     model = Sequential()
     model.add(layers.Masking(mask_value=0, input_shape=shape))
     model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
     model.add(layers.TimeDistributed(layers.Dense(1, activation='sigmoid')))
     model.compile(loss='binary_crossentropy', optimizer='adam')#, sample_weight_mode='temporal')
     model.summary()
+
     model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=1000, batch_size=batch, callbacks=[es], verbose=2)#,
               #sample_weight=sample_weights)
     predictions_probs = model.predict(test_x)
     predictions = []
-    print("batch size")
-    print(batch)
+    print(f"batch size {batch}")
     for pred in predictions_probs:
         pred_lst = [[1] if x>=0.5 else [0] for x in pred]
         predictions.append(pred_lst)
@@ -248,7 +279,7 @@ def evaluate(predictions, test_y, scores):
     return eval_scores
 
 
-def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_change, scores):
+def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_change, scores, random_state=0):
     """
     Split data, train classifier, get predictions & calculate evaluation scores
     :param padded_x: padded x data
@@ -260,27 +291,88 @@ def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_cha
     evluation scores
     """
     x_train, x_test, y_train, y_test = train_test_split(padded_x, padded_labels_style_change, test_size=0.2,
-                                                        random_state=42)
+                                                        random_state=random_state)
     predictions = train_classifier(x_train, y_train, padded_val_x, padded_val_y, x_test)
     evaluations = evaluate(predictions, y_test, scores)
     return evaluations
 
 
+def baselines(padded_labels_style_change):
+    y_train, y_test = train_test_split(padded_labels_style_change, test_size=0.2, random_state=42)
+    majority_baseline_scores = majority_baseline(y_train, y_test)
+    random_baseline_acc = random_baseline(y_test)
+    return majority_baseline_scores, random_baseline_acc
+
+def task_2(*args):
+
+    if len(args) < 3:
+        raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
+    
+    folder = args[0]
+    validation_folder = args[1]
+    embeddings_dict = args[2]
+
+    global embedding_model
+    
+    if embedding_model == None: 
+        embedding_model = gensim.models.KeyedVectors.load_word2vec_format(embeddings_dict, binary=False, limit=200000)
+    
+    print("--------downloaded---------")
+    compl_measures_all, text_ids, labels, embedding_all_docs = read_data(folder, embedding_model)
+    print("-------read folder -------------")
+    val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs = read_data(validation_folder, embedding_model)
+    print("-------read validation -------------")
+    target = 'changes'
+    val_labels = [item[target] for item in val_labels]
+    labels_style_change = [item[target] for item in labels]  # sc = style change
+
+    #----------------- complexity measures
+    padded_compl_measures, padded_labels_style_change, padded_val_x, padded_val_y = padding(compl_measures_all,
+                                                                                            labels_style_change,
+                                                                                            val_compl_measures,
+                                                                                            val_labels, target)
+    normalized_compl = normalize(padded_compl_measures, axis=2, order=2)
+    normalied_validation = normalize(padded_val_x, axis=2, order=2)
+    eval_scores_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
+                                       scores)
+
+    #----------------- embeddings
+    padded_embeddings, padded_val_x_embeddings, padded_val_y_embeddings = pad_embeddings(embedding_all_docs,
+                                                                                         val_embedding_all_docs,
+                                                                                         val_labels,
+                                                                                         target)
+
+    normalized_embeddings = normalize(padded_embeddings, axis=2, order=2)
+    normalized_val_emb = normalize(padded_val_x_embeddings, axis=2, order=2)
+    eval_scores_embeddings = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
+                                            padded_labels_style_change, scores)
+
+    #----------------- combined complexity feats & embeddings
+    combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
+    combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
+    combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels_style_change, scores)
+
+
+    #----------------- baselines
+    majority_baseline_scores, random_baseline_acc = baselines(padded_labels_style_change)
+
+    #----------------- print results
+    print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
+    print("results embeddings precision, recall, f1, accuracy: " + str(eval_scores_embeddings))
+    print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
+    print("majority baseline accuracy: " + str(majority_baseline_scores))
+    print("random baseline accuracy: " + str(random_baseline_acc))
+
+
+
+## ---------------------------------------------MAIN--------------------------------------------------------------------
+
 if __name__ == "__main__":
-    scores = (precision_score, recall_score, f1_score, accuracy_score)
+    #scores = (precision_score, recall_score, f1_score, accuracy_score)
     validation = True
 
-
-    fasttext.util.download_model('en', if_exists='ignore')  # English
-    ft = fasttext.load_model('cc.en.300.bin')
-
-    print(ft)
     if len(sys.argv) < 4:
         raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
-
-
-    
-
 
     folder = sys.argv[1]
     validation_folder = sys.argv[2]
@@ -289,12 +381,12 @@ if __name__ == "__main__":
     np.set_printoptions(threshold=np.inf)
     embedding_model = gensim.models.KeyedVectors.load_word2vec_format(embeddings_dict, binary=False, limit=200000)
     print("--------downloaded---------")
-    compl_measures_all, text_ids, labels, embedding_all_docs = read_data(folder)
+    compl_measures_all, text_ids, labels, embedding_all_docs = read_data(folder, embedding_model)
     print("-------read folder -------------")
-    val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs = read_data(validation_folder)
+    val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs = read_data(validation_folder, embedding_model)
     print("-------read validation -------------")
-    val_labels = [item[2] for item in val_labels]
-    labels_style_change = [item[2] for item in labels]  # sc = style change
+    val_labels = [item['changes'] for item in val_labels]
+    labels_style_change = [item['changes'] for item in labels]  # sc = style change
 
     #----------------- complexity measures
     padded_compl_measures, padded_labels_style_change, padded_val_x, padded_val_y = padding(compl_measures_all,
@@ -323,9 +415,8 @@ if __name__ == "__main__":
 
 
     #----------------- baselines
-    y_train, y_test = train_test_split(padded_labels_style_change, test_size=0.2, random_state=42)
-    majority_baseline_scores = majority_baseline(y_train, y_test)
-    random_baseline_acc = random_baseline(y_test)
+    majority_baseline_scores, random_baseline_acc = baselines(padded_labels_style_change)
+
 
     #----------------- print results
     print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
