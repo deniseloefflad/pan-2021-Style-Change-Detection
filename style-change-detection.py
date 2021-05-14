@@ -3,16 +3,13 @@ import json
 import nltk
 import numpy as np
 import sys
-from keras.models import Sequential
-from keras import layers
+import networks
 from sklearn.model_selection import train_test_split
 from keras.utils import normalize
-from sklearn.utils import class_weight
 from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
-from keras.callbacks import EarlyStopping
-import random
 import gensim
+from sklearn.model_selection import train_test_split
 from nltk.tokenize import word_tokenize
 
 #import fasttext.util
@@ -161,81 +158,6 @@ def padding(x, labels, val_x, val_labels):
     return padded_x, padded_y, padded_val_x, padded_val_y
 
 
-def majority_baseline(train_labels, val_labels):
-    """
-    :param train_labels: train labels
-    :param val_labels: test labels
-    :return:
-    accuracy score for majority baseline
-    """
-    majority_class = np.argmax(np.bincount(np.array(train_labels).flatten()))
-    counts = np.bincount(np.array(val_labels).flatten())
-    majority_score = counts[majority_class]
-    score = majority_score / (counts[0]+counts[1])
-    return score
-
-
-def random_baseline(val_labels):
-    """
-    :param val_labels: test labels
-    :return:
-    accuracy for random baseline
-    """
-    val_labels = np.array(val_labels)
-    random_values = [random.randint(0, 1) for x in range(len(val_labels.flatten()))]
-    counts = np.bincount(val_labels.flatten())
-    counts_preds = np.bincount(random_values)
-    tp = (counts[0] if counts[0]<=counts_preds[0] else counts_preds[0])
-    tn = (counts[1] if counts[1]<=counts_preds[1] else counts_preds[1])
-    fp = (counts_preds[0]-counts[0] if counts_preds[0]>counts[0] else 0)
-    fn = (counts_preds[1]-counts[1] if counts_preds[1]>counts[1] else 0)
-    accuracy_random = (tp+tn)/(tp+tn+fp+fn)
-    return accuracy_random
-
-
-def train_classifier(train_x, train_y, val_x, val_y, test_x):
-    """
-    Build RNN model
-    :param train_x: train x data
-    :param train_y: train y data
-    :param val_x: validation xdata
-    :param val_y: validation y data
-    :param test_x: test x data
-    :return:
-    predictions for dataset
-    """
-    train_x = np.array(train_x)
-    train_y = np.array(train_y)
-    test_x = np.array(test_x)
-    val_x = np.array(val_x)
-    val_y = np.array(val_y)
-    shape = train_x.shape[1:]
-    unique_labels = np.array([0, 1])
-    flattened_labels = train_y.flatten()
-    #class_weights = class_weight.compute_sample_weight('balanced', unique_labels, flattened_labels)
-    #sample_weights = np.array([class_weights[0] if x==0 else class_weights[1] for x in flattened_labels])
-    #sample_weights = sample_weights.reshape((train_x.shape[1], train_x.shape[0])).transpose()
-    batch = 1
-    number_paragraphs = len(train_x[0])
-    es = EarlyStopping(monitor='val_loss', patience=5, verbose=1)
-    model = Sequential()
-    model.add(layers.Masking(mask_value=0, input_shape=shape))
-    model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
-    model.add(layers.TimeDistributed(layers.Dense(number_paragraphs, activation='sigmoid')))
-    model.compile(loss='binary_crossentropy', optimizer='adam')#, sample_weight_mode='temporal')
-    model.summary()
-    model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=1000, batch_size=batch, callbacks=[es], verbose=2)#,
-              #sample_weight=sample_weights)
-    predictions_probs = model.predict(test_x)
-    predictions = []
-    print("batch size")
-    print(batch)
-    for pred in predictions_probs:
-        pred_lst = [[1] if x>=0.5 else [0] for x in pred]
-        predictions.append(pred_lst)
-    return predictions
-
-
 def evaluate(predictions, test_y, scores):
     """
     :param predictions: array of predictions
@@ -250,22 +172,13 @@ def evaluate(predictions, test_y, scores):
     return eval_scores
 
 
-def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_change, scores):
-    """
-    Split data, train classifier, get predictions & calculate evaluation scores
-    :param padded_x: padded x data
-    :param padded_val_x: padded validation x data
-    :param padded_val_y: padded validation y data
-    :param padded_labels_style_change: padded labels
-    :param scores: list of scores for evaluation
-    :return:
-    evluation scores
-    """
-    x_train, x_test, y_train, y_test = train_test_split(padded_x, padded_labels_style_change, test_size=0.2,
-                                                        random_state=42)
-    predictions = train_classifier(x_train, y_train, padded_val_x, padded_val_y, x_test)
-    evaluations = evaluate(predictions, y_test, scores)
-    return evaluations
+
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
@@ -310,46 +223,53 @@ if __name__ == "__main__":
 
         :return:
         """
-        padded_compl_measures, padded_labels_style_change, padded_val_x, padded_val_y = padding(compl_measures, labs,
+        padded_compl_measures, padded_labels, padded_val_x, padded_val_y = padding(compl_measures, labs,
                                                                                             val_measures, val_labs)
         normalized_compl = normalize(padded_compl_measures, axis=2, order=2)
         normalied_validation = normalize(padded_val_x, axis=2, order=2)
-        eval_scores_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
+        eval_scores_compl = networks.get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels,
                                        scrs)
-        return eval_scores_compl
+        return eval_scores_compl, padded_labels, padded_val_y, normalized_compl, normalied_validation
 
     #eval_compl_style_change = get_results_compl(compl_measures_all, labels_style_change, val_compl_measures, val_labels, scores)
-    eval_compl_authors = get_results_compl(compl_measures_all, labels_authors, val_compl_measures, val_labels_authors,
+    eval_compl_authors, padded_labels, padded_val_y, normalized_compl, normalied_validation = get_results_compl(compl_measures_all, labels_authors, val_compl_measures, val_labels_authors,
                                                 scores)
 
     #----------------- embeddings
-    def get_results_embeddings(embedding_docs, val_embs, val_labs, scrs):
+    def get_results_embeddings(embedding_docs, val_embs, val_labs, padded_labels, scrs):
         padded_embeddings, padded_val_x_embeddings, padded_val_y_embeddings = pad_embeddings(embedding_docs, val_embs,
                                                                                              val_labs)
 
         normalized_embeddings = normalize(padded_embeddings, axis=2, order=2)
         normalized_val_emb = normalize(padded_val_x_embeddings, axis=2, order=2)
-        eval_scores_embeddings = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
-                                                padded_labels_style_change, scrs)
-        return eval_scores_embeddings
+        eval_scores_embeddings = networks.get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
+                                                scrs, padded_labels)
+        return eval_scores_embeddings, normalized_embeddings, normalized_val_emb
 
     #eval_scores_embeddings = get_results_embeddings(embedding_all_docs, val_embedding_all_docs, val_labels, scores)
-    eval_embeddings_authors = get_results_embeddings(embedding_all_docs, val_embedding_all_docs, val_labels_authors, scores)
+    eval_embeddings_authors, normalized_embeddings, normalized_val_emb = get_results_embeddings(embedding_all_docs, val_embedding_all_docs, val_labels_authors,
+                                                     scores, padded_labels)
 
     #----------------- combined complexity feats & embeddings
-    combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
-    combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
-    combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels_style_change, scores)
+    def get_results_combined(normalized_embeddings,normalized_val_emb,normalized_compl,normalied_validation,padded_labels, padded_val_y, scrs):
+        combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
+        combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
+        combined_scores = networks.get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scrs)
+        return combined_scores
+
+    #eval_combined_style_change = get_results_embeddings(padded_val_y, padded_labels, scores)
+    eval_combined_authors = get_results_combined(normalized_embeddings, normalized_val_emb, normalized_compl, normalied_validation,
+                                                 padded_labels, padded_val_y, scores)
 
 
     #----------------- baselines
-    y_train, y_test = train_test_split(padded_labels_style_change, test_size=0.2, random_state=42)
-    majority_baseline_scores = majority_baseline(y_train, y_test)
-    random_baseline_acc = random_baseline(y_test)
+    y_train, y_test = train_test_split(padded_labels, test_size=0.2, random_state=42)
+    majority_baseline_scores = networks.majority_baseline(y_train, y_test)
+    random_baseline_acc = networks.random_baseline(y_test)
 
     #----------------- print results
-    print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
-    print("results embeddings precision, recall, f1, accuracy: " + str(eval_scores_embeddings))
-    print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
+    print("results complexity measures precision, recall, f1, accuracy: " + str(eval_compl_authors))
+    print("results embeddings precision, recall, f1, accuracy: " + str(eval_embeddings_authors))
+    print("results combined precision, recall, f1, accuracy: " + str(eval_combined_authors))
     print("majority baseline accuracy: " + str(majority_baseline_scores))
     print("random baseline accuracy: " + str(random_baseline_acc))
