@@ -1,7 +1,9 @@
 pan21/ 
 .vscode/
 # remove the data set and its parts 
-cc.en.300.bin.gz*
+cc.en.300*
+train/
+validation/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
