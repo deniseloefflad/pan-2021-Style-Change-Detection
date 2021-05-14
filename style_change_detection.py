@@ -13,6 +13,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 from keras.callbacks import EarlyStopping
 import random
 import gensim
+from networks import get_evaluation, baselines, train_classifier
 from nltk.tokenize import word_tokenize
 
 import fasttext.util
@@ -117,6 +118,7 @@ def _pad(x, labels, padding_x, padding_y, pad_len, target):
 
     padded_x = []
     padded_y = []
+    elem_y = []
     for i, elem in enumerate(x):
         start_size = len(elem)
         elem += (pad_len - start_size) * [padding_x]
@@ -186,132 +188,18 @@ def padding(x, labels, val_x, val_labels, target):
     return padded_x, padded_y, padded_val_x, padded_val_y
 
 
-def majority_baseline(train_labels, val_labels):
-    """
-    :param train_labels: train labels
-    :param val_labels: test labels
-    :return:
-    accuracy score for majority baseline
-    """
-    majority_class = np.argmax(np.bincount(np.array(train_labels).flatten()))
-    counts = np.bincount(np.array(val_labels).flatten())
-    majority_score = counts[majority_class]
-    score = majority_score / (counts[0]+counts[1])
-    return score
 
-
-def random_baseline(val_labels):
-    """
-    :param val_labels: test labels
-    :return:
-    accuracy for random baseline
-    """
-    val_labels = np.array(val_labels)
-    random_values = [random.randint(0, 1) for x in range(len(val_labels.flatten()))]
-    counts = np.bincount(val_labels.flatten())
-    counts_preds = np.bincount(random_values)
-    tp = (counts[0] if counts[0]<=counts_preds[0] else counts_preds[0])
-    tn = (counts[1] if counts[1]<=counts_preds[1] else counts_preds[1])
-    fp = (counts_preds[0]-counts[0] if counts_preds[0]>counts[0] else 0)
-    fn = (counts_preds[1]-counts[1] if counts_preds[1]>counts[1] else 0)
-    accuracy_random = (tp+tn)/(tp+tn+fp+fn)
-    return accuracy_random
-
-
-def train_classifier(train_x, train_y, val_x, val_y, test_x):
-    """
-    Build RNN model
-    :param train_x: train x data
-    :param train_y: train y data
-    :param val_x: validation xdata
-    :param val_y: validation y data
-    :param test_x: test x data
-    :return:
-    predictions for dataset
-    """
-    train_x = np.array(train_x)
-    train_y = np.array(train_y)
-    test_x = np.array(test_x)
-    val_x = np.array(val_x)
-    val_y = np.array(val_y)
-    shape = train_x.shape[1:]
-
-    unique_labels = np.array([0, 1])
-    flattened_labels = train_y.flatten()
-    class_weights = class_weight.compute_sample_weight('balanced', unique_labels, flattened_labels)
-    sample_weights = np.array([class_weights[0] if x==0 else class_weights[1] for x in flattened_labels])
-
-    # shape can be one dimensional iff target is multi-author
-    sample_weights = sample_weights.reshape((train_x.shape[1], train_x.shape[0])).transpose()
-  
-    batch = 1
-
-    es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
-    model = Sequential()
-    model.add(layers.Masking(mask_value=0, input_shape=shape))
-    model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
-    model.add(layers.TimeDistributed(layers.Dense(1, activation='sigmoid')))
-    model.compile(loss='binary_crossentropy', optimizer='adam')#, sample_weight_mode='temporal')
-    model.summary()
-
-    model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=1000, batch_size=batch, callbacks=[es], verbose=2)#,
-              #sample_weight=sample_weights)
-    predictions_probs = model.predict(test_x)
-    predictions = []
-    print(f"batch size {batch}")
-    for pred in predictions_probs:
-        pred_lst = [[1] if x>=0.5 else [0] for x in pred]
-        predictions.append(pred_lst)
-    return predictions
-
-
-def evaluate(predictions, test_y, scores):
-    """
-    :param predictions: array of predictions
-    :param test_y : labels data
-    :param scores: list of scores to evaluate (f1, accuracy...)
-    :return:
-    eval_scores: precision, recall, f_1 and accuracy score
-    """
-    eval_scores = []
-    for score in scores:
-        eval_scores.append(score(np.array(predictions).flatten(), np.array(test_y).flatten()))
-    return eval_scores
-
-
-def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_change, scores, random_state=0):
-    """
-    Split data, train classifier, get predictions & calculate evaluation scores
-    :param padded_x: padded x data
-    :param padded_val_x: padded validation x data
-    :param padded_val_y: padded validation y data
-    :param padded_labels_style_change: padded labels
-    :param scores: list of scores for evaluation
-    :return:
-    evluation scores
-    """
-    x_train, x_test, y_train, y_test = train_test_split(padded_x, padded_labels_style_change, test_size=0.2,
-                                                        random_state=random_state)
-    predictions = train_classifier(x_train, y_train, padded_val_x, padded_val_y, x_test)
-    evaluations = evaluate(predictions, y_test, scores)
-    return evaluations
-
-
-def baselines(padded_labels_style_change):
-    y_train, y_test = train_test_split(padded_labels_style_change, test_size=0.2, random_state=42)
-    majority_baseline_scores = majority_baseline(y_train, y_test)
-    random_baseline_acc = random_baseline(y_test)
-    return majority_baseline_scores, random_baseline_acc
 
 def task_2(*args):
 
     if len(args) < 3:
+        print(len(args))
         raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
     
     folder = args[0]
     validation_folder = args[1]
     embeddings_dict = args[2]
-
+    task = 'task-2'
     global embedding_model
     
     if embedding_model == None: 
@@ -334,7 +222,7 @@ def task_2(*args):
     normalized_compl = normalize(padded_compl_measures, axis=2, order=2)
     normalied_validation = normalize(padded_val_x, axis=2, order=2)
     eval_scores_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
-                                       scores)
+                                       scores, task)
 
     #----------------- embeddings
     padded_embeddings, padded_val_x_embeddings, padded_val_y_embeddings = pad_embeddings(embedding_all_docs,
@@ -364,63 +252,59 @@ def task_2(*args):
     print("random baseline accuracy: " + str(random_baseline_acc))
 
 
+def task_3(*args):
+    folder = args[0]
+    validation_folder = args[1]
+    embeddings_dict = args[2]
+    task = 'task-3'
+    global embedding_model
 
-## ---------------------------------------------MAIN--------------------------------------------------------------------
+    if embedding_model is None:
+        embedding_model = gensim.models.KeyedVectors.load_word2vec_format(embeddings_dict, binary=False, limit=200000)
 
-if __name__ == "__main__":
-    #scores = (precision_score, recall_score, f1_score, accuracy_score)
-    validation = True
-
-    if len(sys.argv) < 4:
-        raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
-
-    folder = sys.argv[1]
-    validation_folder = sys.argv[2]
-    embeddings_dict = sys.argv[3]
-
-    np.set_printoptions(threshold=np.inf)
-    embedding_model = gensim.models.KeyedVectors.load_word2vec_format(embeddings_dict, binary=False, limit=200000)
     print("--------downloaded---------")
     compl_measures_all, text_ids, labels, embedding_all_docs = read_data(folder, embedding_model)
     print("-------read folder -------------")
     val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs = read_data(validation_folder, embedding_model)
     print("-------read validation -------------")
-    val_labels = [item['changes'] for item in val_labels]
-    labels_style_change = [item['changes'] for item in labels]  # sc = style change
+    target = 'authors'
+    val_labels = [item[target] for item in val_labels]
+    labels_authors = [item[target] for item in labels]
 
-    #----------------- complexity measures
-    padded_compl_measures, padded_labels_style_change, padded_val_x, padded_val_y = padding(compl_measures_all,
-                                                                                            labels_style_change,
+    #pad complexity measures, pad embeddings and pad validation data
+    padded_measures, padded_labels, padded_val_x, padded_val_y = padding(compl_measures_all, labels_authors,
                                                                                             val_compl_measures,
-                                                                                            val_labels)
-    normalized_compl = normalize(padded_compl_measures, axis=2, order=2)
+                                                                                            val_labels, target)
+    normalized_compl = normalize(padded_measures, axis=2, order=2)
     normalied_validation = normalize(padded_val_x, axis=2, order=2)
-    eval_scores_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
-                                       scores)
 
-    #----------------- embeddings
     padded_embeddings, padded_val_x_embeddings, padded_val_y_embeddings = pad_embeddings(embedding_all_docs,
                                                                                          val_embedding_all_docs,
-                                                                                         val_labels)
+                                                                                         val_labels,
+                                                                                         target)
 
     normalized_embeddings = normalize(padded_embeddings, axis=2, order=2)
     normalized_val_emb = normalize(padded_val_x_embeddings, axis=2, order=2)
-    eval_scores_embeddings = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
-                                            padded_labels_style_change, scores)
 
-    #----------------- combined complexity feats & embeddings
     combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
     combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
-    combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels_style_change, scores)
-
-
-    #----------------- baselines
-    majority_baseline_scores, random_baseline_acc = baselines(padded_labels_style_change)
-
-
-    #----------------- print results
-    print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
-    print("results embeddings precision, recall, f1, accuracy: " + str(eval_scores_embeddings))
+    combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scores, task)
+    majority_baseline_scores, random_baseline_acc = baselines(padded_labels)
     print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
     print("majority baseline accuracy: " + str(majority_baseline_scores))
     print("random baseline accuracy: " + str(random_baseline_acc))
+
+
+
+
+## ---------------------------------------------MAIN--------------------------------------------------------------------
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 4:
+        raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
+    folder = sys.argv[1]
+    validation_folder = sys.argv[2]
+    embeddings_dict = sys.argv[3]
+    #task_2(folder, validation_folder, embeddings_dict)
+    task_3(folder, validation_folder, embeddings_dict)
