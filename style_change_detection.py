@@ -43,11 +43,15 @@ def get_labels(filename, return_labels = None):
         changes = changes + data['changes']
         changes = [[x] for x in changes]
 
+        author_par = data['paragraph-authors']
+        author_par = [[x] for x in author_par]
+
         number_of_authors.append(data['authors'])
         data['authors'] = number_of_authors
         # return all data or requested data
         if return_labels == None:
             data['changes'] = changes
+            data['paragraph-authors'] = author_par
             return data
         else:      
             for label in return_labels: 
@@ -122,9 +126,9 @@ def _pad(x, labels, padding_x, padding_y, pad_len, target):
     for i, elem in enumerate(x):
         start_size = len(elem)
         elem += (pad_len - start_size) * [padding_x]
-        if (target == 'multi-author'):
+        if target == 'multi-author':
             elem_y = [[labels[i]]] * start_size + (pad_len - start_size) * [padding_y]
-        elif (target == 'changes'):
+        elif (target == 'changes') or (target == 'paragraph-authors'):
             elem_y = labels[i] + (pad_len - len(labels[i])) * [padding_y]
         padded_x.append(elem)
         padded_y.append(elem_y)
@@ -179,8 +183,6 @@ def padding(x, labels, val_x, val_labels, target):
     max_x = len(max(x, key=len))
     max_val = len(max(val_x, key=len))
     max_len = max(max_x, max_val)
-
-   
 
     padded_x, padded_y = _pad(x, labels, pad_compl_measures, pad_style_change, max_len, target)
     padded_val_x, padded_val_y = _pad(val_x, val_labels, pad_compl_measures, pad_style_change, max_len, target)
@@ -267,7 +269,7 @@ def task_3(*args):
     print("-------read folder -------------")
     val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs = read_data(validation_folder, embedding_model)
     print("-------read validation -------------")
-    target = 'authors'
+    target = 'paragraph-authors'
     val_labels = [item[target] for item in val_labels]
     labels_authors = [item[target] for item in labels]
 
@@ -288,8 +290,14 @@ def task_3(*args):
 
     combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
     combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
+
+
+    complexity_scores = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels, scores, task)
+    embedding_scores = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y, padded_labels, scores, task)
     combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scores, task)
     majority_baseline_scores, random_baseline_acc = baselines(padded_labels)
+    print("results complexity precision, recall, f1, accuracy: " + str(complexity_scores))
+    print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
     print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
     print("majority baseline accuracy: " + str(majority_baseline_scores))
     print("random baseline accuracy: " + str(random_baseline_acc))
