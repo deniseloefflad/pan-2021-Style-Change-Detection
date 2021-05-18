@@ -13,7 +13,7 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 from keras.callbacks import EarlyStopping
 import random
 import gensim
-from networks import get_evaluation, baselines, train_classifier
+from networks import get_evaluation, lstm_task_2, lstm_task_3
 from nltk.tokenize import word_tokenize
 
 import fasttext.util
@@ -243,15 +243,10 @@ def task_2(*args):
     combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels_style_change, scores)
 
 
-    #----------------- baselines
-    majority_baseline_scores, random_baseline_acc = baselines(padded_labels_style_change)
-
     #----------------- print results
     print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
     print("results embeddings precision, recall, f1, accuracy: " + str(eval_scores_embeddings))
     print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
-    print("majority baseline accuracy: " + str(majority_baseline_scores))
-    print("random baseline accuracy: " + str(random_baseline_acc))
 
 
 def task_3(*args):
@@ -295,19 +290,12 @@ def task_3(*args):
     complexity_scores = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels, scores, task)
     embedding_scores = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y, padded_labels, scores, task)
     combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scores, task)
-    majority_baseline_scores, random_baseline_acc = baselines(padded_labels)
     print("results complexity precision, recall, f1, accuracy: " + str(complexity_scores))
     print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
     print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
-    print("majority baseline accuracy: " + str(majority_baseline_scores))
-    print("random baseline accuracy: " + str(random_baseline_acc))
-
-
 
 
 ## ---------------------------------------------MAIN--------------------------------------------------------------------
-
-
 if __name__ == "__main__":
     if len(sys.argv) < 4:
         raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
