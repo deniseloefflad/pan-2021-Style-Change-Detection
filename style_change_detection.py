@@ -290,6 +290,7 @@ def task_3(*args):
     complexity_scores = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels, scores, task)
     embedding_scores = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y, padded_labels, scores, task)
     combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scores, task)
+    print('---------SimpleRNN--------------')
     print("results complexity precision, recall, f1, accuracy: " + str(complexity_scores))
     print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
     print("results combined precision, recall, f1, accuracy: " + str(combined_scores))

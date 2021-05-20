@@ -23,6 +23,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from imblearn.pipeline import make_pipeline
 from sklearn.cluster import KMeans
+from keras.models import load_model
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -70,13 +71,8 @@ def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
     model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=1000, batch_size=batch, callbacks=[es],
               verbose=2)  # ,
     # sample_weight=sample_weights)
-    predictions_probs = model.predict(test_x)
-    predictions = []
-    # print(f"batch size {batch}")
-    for pred in predictions_probs:
-        pred_lst = [[1] if x >= 0.5 else [0] for x in pred]
-        predictions.append(pred_lst)
-    return predictions
+    model_name = 'model_task2.h5'
+    model.save(model_name)
 
 
 def lstm_task_3(train_x, train_y, val_x, val_y, test_x):
@@ -119,22 +115,12 @@ def lstm_task_3(train_x, train_y, val_x, val_y, test_x):
         model.compile(loss='categorical_crossentropy', optimizer='adam')  # , sample_weight_mode='temporal')
         model.summary()
 
-        model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=10, batch_size=batch, callbacks=[es],
+        model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=1000, batch_size=batch, callbacks=[es],
                   verbose=2)  # ,
         # sample_weight=sample_weights)
 
-        model_name = 'model_task3.sav'
-        pickle.dump(model, open(model_name, 'wb'))
-
-        predictions_probs = model.predict(test_x)
-        predictions = []
-        for probs in predictions_probs:
-            authors_text = []
-            for par in probs:
-                most_prob_author_par = np.argmax(par)+1
-                authors_text.append(most_prob_author_par)
-            predictions.append(authors_text)
-        return predictions
+        model_name = 'model_task3.h5'
+        model.save(model_name)
 
 
 def pipeline_task_3(train_x, train_y, val_x, val_y, test_x):
@@ -167,11 +153,9 @@ def pipeline_task_3(train_x, train_y, val_x, val_y, test_x):
     param_grid = dict(kmeans__n_clusters=range(2,100))
     grid_clf = GridSearchCV(model, param_grid, cv=2, verbose=1)
     grid_clf.fit(flattened_train_x, flattened_train_y)
-    model_name = 'kmeans_pipeline_task3.sav'
-    pickle.dump(model, open(model_name, 'wb'))
-    predictions = grid_clf.predict(flattened_test_x)
-    print(predictions)
-    return predictions
+    model_name = 'kmeans_pipeline_task3.h5'
+    model.save(model_name)
+
 
 
 def conv3d_model_task_3(train_x, train_y, val_x, val_y, test_x):
@@ -187,9 +171,9 @@ def conv3d_model_task_3(train_x, train_y, val_x, val_y, test_x):
     es = EarlyStopping(monitor='val_loss', patience=3, verbose=1, mode="min", restore_best_weights=True)
     model = Sequential()
     model.add(layers.Masking(mask_value=0, input_shape=shape))
-    model.add(layers.Conv3D(2, 3))  # 128 internal units
+    model.add(layers.Conv3D(2, 3, input_shape=shape))  # 128 internal units
     model.add(layers.Dropout(0.5))
-    model.add(layers.Conv3D(2, 3))
+    model.add(layers.Conv3D(2, 3, input_shape=shape))
     # model.add(layers.TimeDistributed(layers.Dense(number_labels, activation='softmax')))
     model.add(layers.Dense(number_labels, activation='softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='adam')  # , sample_weight_mode='temporal')
@@ -199,13 +183,36 @@ def conv3d_model_task_3(train_x, train_y, val_x, val_y, test_x):
               verbose=2)  # ,
     # sample_weight=sample_weights)
 
-    model_name = 'conv3d_model_task3.sav'
-    pickle.dump(model, open(model_name, 'wb'))
+    model_name = 'conv3d_model_task3.h5'
+    model.save(model_name)
+
+def RNN_model(train_x, train_y, val_x, val_y, test_x):
+    train_x = np.array(train_x)
+    train_y = np.array(train_y)
+    test_x = np.array(test_x)
+    val_x = np.array(val_x)
+    val_y = np.array(val_y)
+    shape = train_x.shape[1:]
+    time_steps = train_x.shape[1]
+    es = EarlyStopping(monitor='val_loss', patience=3, verbose=1, mode="min", restore_best_weights=True)
+    batch = 5
+    model = Sequential([
+        layers.Masking(mask_value=0, input_shape=shape),
+        layers.SimpleRNN(1, input_shape=[None,1], return_sequences=True),
+        layers.SimpleRNN(1, return_sequences=True, input_shape=[None, 1]),
+        layers.TimeDistributed(layers.Dense(time_steps, activation='softmax'))
+    ])
+    model.compile(loss='categorical_crossentropy', optimizer='adam')
+    model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=10, batch_size=batch, callbacks=[es],
+              verbose=2)
+    model_name = 'rnn_model_task3.h5'
+    model.save(model_name)
 
 
 def get_predictions(task, test_data):
-    model_name = 'model_task1.sav' if task=='task-1' else 'model_task2.sav' if task=='task-2' else 'model_task3.sav'
-    loaded_model = pickle.load(open(model_name, 'rb'))
+    model_name = 'model_task1.h5' if task=='task-1' else 'model_task2.h5' if task=='task-2' else 'rnn_model_task3.h5'
+    #loaded_model = pickle.load(open(model_name, 'rb'))
+    loaded_model = load_model(model_name)
     predictions_probs = loaded_model.predict(test_data)
     predictions = []
     if task == 'task-1':
@@ -222,35 +229,6 @@ def get_predictions(task, test_data):
                 authors_text.append(most_prob_author_par)
             predictions.append(authors_text)
     return predictions
-
-"""
-def train_svm(train_x, train_y, val_x, val_y, test_x):
-    train_x = np.array(train_x)
-    train_y = np.array(train_y)
-    test_x = np.array(test_x)
-    val_x = np.array(val_x)
-    val_y = np.array(val_y)
-    shape = train_x.shape[1:]
-
-    unique_labels = np.array([0, 1])
-    flattened_labels = train_y.flatten()
-    batch = 1
-    svm_classifier = svm.SVC(decision_function_shape='ovo', kernel='sigmoid')
-    param_kernel = ['rbf']
-    # param_gamma = 'scale' #np.arange(0, 1, 0.2)
-    param_grid = dict(C=range_param_c, kernel=param_kernel)
-    grid = GridSearchCV(classifier, param_grid, cv=k, scoring='accuracy')
-    grid.fit(data, labels)
-    best_model = grid.best_estimator_
-    es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
-    #model = Sequential()
-    #model.add(layers.Masking(mask_value=0, input_shape=shape))
-    #model.add()
-
-    #svm_classifier.fit(train_x, train_y)
-    predictions = best_model.predict(test_x)
-    return predictions
-"""
 
 
 def evaluate(predictions, test_y, scores, multi):
@@ -286,22 +264,23 @@ def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_cha
     x_train, x_test, y_train, y_test = train_test_split(padded_x, padded_labels_style_change, test_size=0.2,
                                                         random_state=random_state)
     if task == 'task-1':
-        predictions = model_task_1(x_train, y_train, padded_val_x, padded_val_y, x_test)
+        model_task_1(x_train, y_train, padded_val_x, padded_val_y, x_test)
         multiple_classes = False
     elif task == 'task-2':
-        predictions = lstm_task_2(x_train, y_train, padded_val_x, padded_val_y, x_test)
+        lstm_task_2(x_train, y_train, padded_val_x, padded_val_y, x_test)
         multiple_classes = False
     elif task == 'task-3':
-        #predictions = train_svm(x_train, y_train, padded_val_x, padded_val_y, x_test)
         #y_train_encoded = one_hot_encoding(y_train, encoder)
         #padded_val_encoded = one_hot_encoding(padded_val_y, encoder)
         y_train_encoded = manual_encoding(y_train)
         padded_val_encoded = manual_encoding(padded_val_y)
-        #predictions = lstm_task_3(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
-        predictions = pipeline_task_3(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
+        #lstm_task_3(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
+        # pipeline_task_3(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
+        # RNN_model(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
+        RNN_model(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
         multiple_classes = True
-        return
 
+    predictions = get_predictions(task, x_test)
     evaluations = evaluate(predictions, y_test, scores, multiple_classes)
     return evaluations
 
