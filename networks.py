@@ -108,7 +108,7 @@ def lstm_task_3(train_x, train_y, val_x, val_y, test_x):
         model = Sequential()
         model.add(layers.Masking(mask_value=0, input_shape=shape))
         model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
-        model.add(layers.Dropout(0.5))
+        #model.add(layers.Dropout(0.5))
         model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))
         #model.add(layers.TimeDistributed(layers.Dense(number_labels, activation='softmax')))
         model.add(layers.Dense(number_labels, activation='softmax'))
@@ -209,18 +209,52 @@ def RNN_model(train_x, train_y, val_x, val_y, test_x):
     model.save(model_name)
 
 
+def model_task3(preds, train_x, train_y):
+    time_steps = train_x.shape[1]
+    padding_size = train_x.shape[2]
+    model = load_model('model_task2.h5')
+    c = np.zeros(padding_size, dtype=int).tolist()
+    for z, text in enumerate(preds):
+        authors = []
+        for i, paragraph in enumerate(text):
+            if i == 0: authors.append(1)
+            elif paragraph[0] == 0: authors.append(authors[i-1])
+            else:
+                j = 0
+                data = []
+                text = []
+                text.append(train_x[z][j].tolist())
+                text.append(train_x[z][i].tolist())
+                text = text + (time_steps - 2) * [c]
+                data.append(text)
+                while(model.predict(data)[0][1] >= 0.5) and i < j:
+                    j += 1
+                    data = []
+                    text = []
+                    text.append(train_x[z][j].tolist())
+                    text.append(train_x[z][i].tolist())
+                    text = text + (time_steps - 2) * [c]
+                    data.append(text)
+                if i == j:
+                    new_author = len(list(set(authors)))
+                    authors.append([new_author])
+                else: authors.append(authors[j])
+    return authors
+
+
 def get_predictions(task, test_data):
-    model_name = 'model_task1.h5' if task=='task-1' else 'model_task2.h5' if task=='task-2' else 'rnn_model_task3.h5'
+    model_name = 'model_task1.h5' if task=='task-1' else 'model_task2.h5'# if task=='task-2' else 'model_task3.h5'
     #loaded_model = pickle.load(open(model_name, 'rb'))
     loaded_model = load_model(model_name)
     predictions_probs = loaded_model.predict(test_data)
     predictions = []
     if task == 'task-1':
         return
-    elif task == 'task-2':
+    elif task == 'task-2' or task == 'task-3':
         for pred in predictions_probs:
             pred_lst = [[1] if x >= 0.5 else [0] for x in pred]
             predictions.append(pred_lst)
+    """
     elif task == 'task-3':
         for probs in predictions_probs:
             authors_text = []
@@ -228,6 +262,7 @@ def get_predictions(task, test_data):
                 most_prob_author_par = np.argmax(par) + 1
                 authors_text.append(most_prob_author_par)
             predictions.append(authors_text)
+    """
     return predictions
 
 
@@ -249,38 +284,39 @@ def evaluate(predictions, test_y, scores, multi):
     return eval_scores
 
 
-def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_change, scores, task, random_state=0):
+def get_evaluation(x, val_x, val_y, labels, scores, task, random_state=0):
     """
     Split data, train classifier, get predictions & calculate evaluation scores
-    :param task:
-    :param padded_x: padded x data
-    :param padded_val_x: padded validation x data
-    :param padded_val_y: padded validation y data
-    :param padded_labels_style_change: padded labels
+    :param x: padded x data
+    :param val_x: padded validation x data
+    :param val_y: padded validation y data
+    :param labels: padded labels
+    :param task: string to indicate task 1, 2 or 3
     :param scores: list of scores for evaluation
     :return:
     evluation scores
     """
-    x_train, x_test, y_train, y_test = train_test_split(padded_x, padded_labels_style_change, test_size=0.2,
-                                                        random_state=random_state)
+    x_train, x_test, y_train, y_test = train_test_split(x, labels, test_size=0.2, random_state=random_state)
     if task == 'task-1':
-        model_task_1(x_train, y_train, padded_val_x, padded_val_y, x_test)
+        model_task_1(x_train, y_train, val_x, val_y, x_test)
         multiple_classes = False
     elif task == 'task-2':
-        lstm_task_2(x_train, y_train, padded_val_x, padded_val_y, x_test)
+        lstm_task_2(x_train, y_train, val_x, val_y, x_test)
         multiple_classes = False
     elif task == 'task-3':
         #y_train_encoded = one_hot_encoding(y_train, encoder)
         #padded_val_encoded = one_hot_encoding(padded_val_y, encoder)
         y_train_encoded = manual_encoding(y_train)
-        padded_val_encoded = manual_encoding(padded_val_y)
+        padded_val_encoded = manual_encoding(val_y)
         #lstm_task_3(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
         # pipeline_task_3(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
         # RNN_model(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
-        RNN_model(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
+        # RNN_model(x_train, y_train_encoded, padded_val_x, padded_val_encoded, x_test)
         multiple_classes = True
 
     predictions = get_predictions(task, x_test)
+    if task == 'task-3':
+        predictions = model_task3(predictions, x_train, y_train)
     evaluations = evaluate(predictions, y_test, scores, multiple_classes)
     return evaluations
 
