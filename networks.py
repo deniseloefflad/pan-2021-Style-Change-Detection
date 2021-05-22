@@ -79,16 +79,12 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     # print(train_y)
     # print(flattened_labels)
     # class_weights = calc_class_weights(train_x, train_y)
-    shape = (8, 5)
-    print(train_x.shape)
-    print(train_ds._flat_shapes)
-
 
     es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
     model = Sequential()
 
-    model.add(layers.Dense(350, input_shape=train_x.shape, activation='relu'))
-    model.add(layers.Dense(50, activation='relu'))
+    model.add(layers.Dense(250, input_shape=train_x.shape, activation='relu'))
+    model.add(layers.Dense(100, activation='relu'))
     model.add(layers.Dense(1, activation='sigmoid'))
    
     # # model.add(layers.Masking(mask_value=0, input_shape=train_x.shape))
@@ -99,9 +95,6 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     model.summary()
 
     model.fit(train_x, train_y, validation_data=(padded_val_x, padded_val_y), epochs=1000, callbacks=[es], verbose=2)
-
-    predictions = model.predict(test_x)
-    print(predictions)
 
     return model
 
@@ -202,7 +195,11 @@ def get_predictions(model, task, test_data):
     predictions_probs = model.predict(test_data)
     predictions = []
     if task == 'task-1':
-        return
+        for pred in predictions_probs:
+            if pred[0] >= 0.5:
+                predictions.append(1)
+            else:
+                predictions.append(0)
     elif task == 'task-2' or task == 'task-3':
         for pred in predictions_probs:
             pred_lst = [[1] if x >= 0.5 else [0] for x in pred]
