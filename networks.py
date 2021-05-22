@@ -103,8 +103,7 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     predictions = model.predict(test_x)
     print(predictions)
 
-    model_name = 'model_task1.h5'
-    model.save(model_name)
+    return model
 
 
 
@@ -342,7 +341,7 @@ def get_evaluation(padded_x, padded_val_x, padded_val_y, padded_labels_style_cha
     x_train, x_test, y_train, y_test = train_test_split(padded_x, padded_labels_style_change, test_size=0.2,
                                                         random_state=random_state)
     if task == 'task-1':
-        model_task_1(x_train, y_train, padded_val_x, padded_val_y, x_test)
+        model = model_task_1(x_train, y_train, padded_val_x, padded_val_y, x_test)
         multiple_classes = False
     elif task == 'task-2':
         lstm_task_2(x_train, y_train, padded_val_x, padded_val_y, x_test)

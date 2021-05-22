@@ -231,7 +231,7 @@ def task_1(folder, validation_folder, embeddings_dict):
     # val_x_combined = np.concatenate((np.array(val_x_emb), np.array(val_x)), axis=2)
    
     # complexity_scores = get_evaluation(train_x, val_x, val_y, train_y, scores, task)
-    embedding_scores = get_evaluation(train_x_emb, val_x_emb, val_y, train_y, scores, task)
+    embedding_scores, model = get_evaluation(train_x_emb, val_x_emb, val_y, train_y, scores, task)
     # combined_scores = get_evaluation(train_x_combined, val_x_combined, val_y, train_y, scores, task)
 
         #----------------- print results
