@@ -7,9 +7,10 @@ from keras.utils import normalize
 from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 import gensim
-from networks import get_evaluation
+from networks import get_evaluation#, lstm_task_2
 from nltk.tokenize import word_tokenize
-
+from keras.models import load_model
+import fasttext.util
 import warnings
 warnings.filterwarnings("ignore")
 nltk.download('punkt')
@@ -176,10 +177,6 @@ def padding(x, labels, val_x, val_labels, target):
     """
     pad_compl_measures = [0, 0, 0, 0, 0]
     pad_style_change = [0]
-    padded_x = []
-    padded_y = []
-    padded_val_x = []
-    padded_val_y = []
 
     max_x = len(max(x, key=len))
     max_val = len(max(val_x, key=len))
@@ -266,7 +263,8 @@ def task_2(folder, validation_folder, embeddings_dict):
                                                                                             val_labels, target)
     normalized_compl = normalize(padded_compl_measures, axis=2, order=2)
     normalied_validation = normalize(padded_val_x, axis=2, order=2)
-
+    eval_scores_compl, model_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
+                                       scores, task)
 
     #----------------- embeddings
     padded_embeddings, padded_val_x_embeddings, padded_val_y_embeddings = pad_embeddings(embedding_all_docs,
@@ -276,19 +274,17 @@ def task_2(folder, validation_folder, embeddings_dict):
 
     normalized_embeddings = normalize(padded_embeddings, axis=2, order=2)
     normalized_val_emb = normalize(padded_val_x_embeddings, axis=2, order=2)
-
+    eval_scores_embeddings, model_emb = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
+                                            padded_labels_style_change, scores, task)
 
     #----------------- combined complexity feats & embeddings
     combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
     combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
+    combined_scores, model_combined = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels_style_change, scores, task)
 
-    eval_scores_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels_style_change,
-                                       scores, task)
-    eval_scores_embeddings = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y_embeddings,
-                                            padded_labels_style_change, scores, task)
-    combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels_style_change, scores, task)
-
-
+    model_compl.save('task2-complexity-model.h5')
+    model_emb.save('task2-embeddings-model.h5')
+    model_combined.save('task2-combined-model.h5')
     #----------------- print results
     print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
     print("results embeddings precision, recall, f1, accuracy: " + str(eval_scores_embeddings))
@@ -311,6 +307,10 @@ def task_3(folder, validation_folder, embeddings_dict):
     val_labels = [item[target] for item in val_labels]
     labels_authors = [item[target] for item in labels]
 
+    model_compl = load_model('task2-complexity-model.h5')
+    model_emb = load_model('task2-embeddings-model.h5')
+    model_combined = load_model('task2-combined-model.h5')
+
     #pad complexity measures, pad embeddings and pad validation data
     padded_measures, padded_labels, padded_val_x, padded_val_y = padding(compl_measures_all, labels_authors,
                                                                                             val_compl_measures,
@@ -330,10 +330,10 @@ def task_3(folder, validation_folder, embeddings_dict):
     combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
 
 
-    complexity_scores = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels, scores, task)
-    embedding_scores = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y, padded_labels, scores, task)
-    combined_scores = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scores, task)
-    print('---------SimpleRNN--------------')
+    complexity_scores, model = get_evaluation(normalized_compl, normalied_validation, padded_val_y, padded_labels, scores, task, model_compl)
+    embedding_scores, model = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y, padded_labels, scores, task, model_emb)
+    combined_scores, model = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scores, task, model_combined)
+    print('---------LSTM Task 3--------------')
     print("results complexity precision, recall, f1, accuracy: " + str(complexity_scores))
     print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
     print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
