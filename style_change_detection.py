@@ -229,7 +229,6 @@ def task_1(folder, validation_folder, embeddings_dict):
     train_x_emb = normalize(train_x_emb, axis=1, order=2)
     val_x_emb = normalize(val_x_emb, axis=1, order=2)
 
-    
     embedding_scores, predictions, model = get_evaluation(train_x_emb, val_x_emb, val_y, train_y, scores, task)
 
     model.save('model_task1.h5')
@@ -238,8 +237,6 @@ def task_1(folder, validation_folder, embeddings_dict):
     print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
 
     return predictions
-
-
 
 
 def task_2(folder, validation_folder, embeddings_dict):
