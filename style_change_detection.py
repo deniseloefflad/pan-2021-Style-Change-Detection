@@ -3,15 +3,9 @@ import json
 import nltk
 import numpy as np
 import sys
-#from keras.models import Sequential
-#from keras import layers
-#from sklearn.model_selection import train_test_split
 from keras.utils import normalize
-#from sklearn.utils import class_weight
 from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
-#from keras.callbacks import EarlyStopping
-#import random
 import gensim
 from networks import get_evaluation#, lstm_task_2
 from nltk.tokenize import word_tokenize
@@ -72,14 +66,14 @@ def get_word_embeddings(line, embedding_model):
     paragraph = word_tokenize(line)  # tokenize paragraph
     words = [word for word in paragraph if
              word in embedding_model.index_to_key]  # remove out-of-vocabulary words from pretrained embeddings
-    c = np.zeros(300, dtype=int)
+    c = np.zeros(300, dtype=float)
     if words:
-        return np.mean(embedding_model[words], axis=0)
+        return np.array(np.mean(embedding_model[words], axis=0), dtype=float)
     else:
         return c
 
 
-def read_data(folder, embedding_model):
+def read_data(folder, embedding_model, target):
     """get complexity measures for every paragraph & labels
     :return:
     complexity_measures_all_docs: array with complexity measures for all texts, for all paragraphs
@@ -101,15 +95,23 @@ def read_data(folder, embedding_model):
                 complexity_measures_text = []
                 text = f.readlines()
                 text_ids = []
+
+                if target == 'multi-author':
+                    f.seek(0)
+                    embedding_all_docs.append(get_word_embeddings(f.read(), embedding_model))
+
                 for line in text:
                     if line.strip():
                         complexity_measures_par = get_complexity_measures(line)
                         complexity_measures_text.append(complexity_measures_par)
                         text_ids.append(i)
-                        if line:
-                            par_embedding = get_word_embeddings(line, embedding_model)
-                        file.append(par_embedding)
-                embedding_all_docs.append(file)
+                        if embedding_model != None and target != 'multi-author':
+                            if line:
+                                par_embedding = get_word_embeddings(line, embedding_model)
+                            file.append(par_embedding)
+                
+                if embedding_model != None and target != 'multi-author':
+                    embedding_all_docs.append(file)
 
                 if complexity_measures_text:
                     complexity_measures_all_docs.append(complexity_measures_text)
@@ -130,7 +132,7 @@ def _pad(x, labels, padding_x, padding_y, pad_len, target):
         start_size = len(elem)
         elem += (pad_len - start_size) * [padding_x]
         if target == 'multi-author':
-            elem_y = [[labels[i]]] * start_size + (pad_len - start_size) * [padding_y]
+            elem_y = labels[i] #* start_size + (pad_len - start_size) * [padding_y]
         elif (target == 'changes') or (target == 'paragraph-authors'):
             elem_y = labels[i] + (pad_len - len(labels[i])) * [padding_y]
         padded_x.append(elem)
@@ -200,25 +202,44 @@ def initialize_global_params(data_folder, validation_folder, embeddings_dict):
                                                                                          embedding_model)
 
 
-def task_1():
+def task_1(folder, validation_folder, embeddings_dict):
+    task = 'task-1'
+    predictions = []
+
     global embedding_model
     global compl_measures_all, text_ids, labels, embedding_all_docs
     global val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs
 
     initialize_global_params(folder, validation_folder, embeddings_dict)
-    predictions = []
+
+    target = 'multi-author'
+
+    print("--------downloaded---------")
+    _train_compl_measures, _text_ids, train_y, train_x_emb = read_data(folder, embedding_model, target)
+    print("-------read folder -------------")
+    _val_compl_measures, _val_text_ids, val_y, val_x_emb = read_data(validation_folder, embedding_model, target)
+
+    val_y = [item[target] for item in val_y]
+    train_y = [item[target] for item in train_y]  # sc = style change
+
+    train_x_emb = normalize(train_x_emb, axis=1, order=2)
+    val_x_emb = normalize(val_x_emb, axis=1, order=2)
+
+    
+    embedding_scores, predictions, model = get_evaluation(train_x_emb, val_x_emb, val_y, train_y, scores, task)
+
+    model.save('model_task1.h5')
+
+    #----------------- print results
+    print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
+
     return predictions
 
 
-def task_2(*args):
 
-    if len(args) < 3:
-        print(len(args))
-        raise TypeError("Please enter the path to a dataset, validation & the embedding dict as input argument!")
-    
-    folder = args[0]
-    validation_folder = args[1]
-    embeddings_dict = args[2]
+
+def task_2(folder, validation_folder, embeddings_dict):
+
     task = 'task-2'
 
     global embedding_model
@@ -271,10 +292,7 @@ def task_2(*args):
     return predictions
 
 
-def task_3(*args):
-    folder = args[0]
-    validation_folder = args[1]
-    embeddings_dict = args[2]
+def task_3(folder, validation_folder, embeddings_dict):
     task = 'task-3'
 
     global embedding_model

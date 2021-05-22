@@ -1,1 +1,1 @@
-__all__ = ['style_change_detection.py', 'stylemeasures.py']
+__all__ = ['style_change_detection.py', 'stylemeasures.py', 'networks.py']

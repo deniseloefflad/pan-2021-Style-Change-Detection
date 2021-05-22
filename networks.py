@@ -1,8 +1,4 @@
-#import os
-#import json
-#import nltk
 import numpy as np
-#import sys
 from keras.models import Sequential
 from keras import layers
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -11,29 +7,73 @@ from sklearn.utils import class_weight
 #from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from keras.callbacks import EarlyStopping
-"""
-import random
-import gensim
-from nltk.tokenize import word_tokenize
-from sklearn import svm
-import fasttext.util
-from sklearn.preprocessing import OneHotEncoder
-from sklearn import preprocessing
-import pickle
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import Pipeline
-from imblearn.pipeline import make_pipeline
-from sklearn.cluster import KMeans
-"""
 from keras.models import load_model
+import tensorflow as tf
+from tensorflow.keras import Model
 import warnings
 warnings.filterwarnings("ignore")
 
 
-def model_task_1(x_train, y_train, padded_val_x, padded_val_y, x_test):
-    model = []
+def calc_class_weights(x, y):
+    class_weights = class_weight.compute_class_weight('balanced', np.unique(y), y)
+
+    sample_weights = np.array([class_weights[0] if label == 0 else class_weights[1] for label in y])
+
+    # shape can be one dimensional iff target is multi-author
+    sample_weights = sample_weights.reshape((x.shape[1], x.shape[0])).transpose()
+    return sample_weights
+
+
+def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
+    """
+    Build RNN model
+    :param train_x: train x data
+    :param train_y: train y data
+    :param val_x: validation xdata
+    :param val_y: validation y data
+    :param test_x: test x data
+    :return:
+    predictions for dataset
+    """
+    train_ds = tf.data.Dataset.from_tensor_slices((train_x, train_y))
+    val_ds = tf.data.Dataset.from_tensor_slices((padded_val_x, padded_val_y))
+
+    for i in train_ds:
+        print(i)
+
+    train_x.shape
+
+    train_x = np.array(train_x, dtype=float)
+    train_y = np.array(train_y)
+    padded_val_x = np.array(padded_val_x)
+    padded_val_y = np.array(padded_val_y)
+    test_x = np.array(test_x)
+
+    # flattened_labels = train_y.flatten()
+    # print(train_y)
+    # print(flattened_labels)
+    # class_weights = calc_class_weights(train_x, train_y)
+
+    es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
+    model = Sequential()
+
+    model.add(layers.Dense(250, input_shape=train_x.shape, activation='relu'))
+    model.add(layers.Dense(100, activation='relu'))
+    model.add(layers.Dense(1, activation='sigmoid'))
+   
+    # # model.add(layers.Masking(mask_value=0, input_shape=train_x.shape))
+    # model.add(layers.LSTM(128, return_sequences=True, return_state=False, input_shape=shape))  # 128 internal units
+    # model.add(layers.Dense(1, activation='sigmoid'))
+    
+    model.compile(loss='binary_crossentropy', optimizer='adam')  # , sample_weight_mode='temporal')
+    model.summary()
+
+    model.fit(train_x, train_y, validation_data=(padded_val_x, padded_val_y), epochs=1000, callbacks=[es], verbose=2)
+
     return model
-    pass
+
+
+
 
 
 def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
@@ -136,7 +176,11 @@ def get_predictions(model, task, test_data):
     predictions_probs = model.predict(test_data)
     predictions = []
     if task == 'task-1':
-        return
+        for pred in predictions_probs:
+            if pred[0] >= 0.5:
+                predictions.append(1)
+            else:
+                predictions.append(0)
     elif task == 'task-2' or task == 'task-3':
         for pred in predictions_probs:
             pred_lst = [[1] if x >= 0.5 else [0] for x in pred]
