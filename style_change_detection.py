@@ -184,7 +184,7 @@ def padding(x, labels, val_x, val_labels, target):
     return padded_x, padded_y, padded_val_x, padded_val_y
 
 
-def initialize_global_params(data_folder, validation_folder, embeddings_dict):
+def initialize_global_params(data_folder, validation_folder, embeddings_dict, target):
     global embedding_model
 
     if embedding_model == None:
@@ -193,13 +193,14 @@ def initialize_global_params(data_folder, validation_folder, embeddings_dict):
     global compl_measures_all, text_ids, labels, embedding_all_docs
 
     if (compl_measures_all and text_ids and labels and embedding_all_docs) == None:
-        compl_measures_all, text_ids, labels, embedding_all_docs = read_data(data_folder, embedding_model)
+        compl_measures_all, text_ids, labels, embedding_all_docs = read_data(data_folder, embedding_model, target)
 
     global val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs
 
     if (val_compl_measures and val_text_ids and val_labels and val_embedding_all_docs) == None:
         val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs = read_data(validation_folder,
-                                                                                         embedding_model)
+                                                                                            embedding_model,
+                                                                                            target)
 
 
 def task_1(folder, validation_folder, embeddings_dict):
@@ -210,14 +211,17 @@ def task_1(folder, validation_folder, embeddings_dict):
     global compl_measures_all, text_ids, labels, embedding_all_docs
     global val_compl_measures, val_text_ids, val_labels, val_embedding_all_docs
 
-    initialize_global_params(folder, validation_folder, embeddings_dict)
-
     target = 'multi-author'
 
+    initialize_global_params(folder, validation_folder, embeddings_dict, target)
+
+
     print("--------downloaded---------")
-    _train_compl_measures, _text_ids, train_y, train_x_emb = read_data(folder, embedding_model, target)
+    train_x_emb = embedding_all_docs
+    train_y = labels
     print("-------read folder -------------")
-    _val_compl_measures, _val_text_ids, val_y, val_x_emb = read_data(validation_folder, embedding_model, target)
+    val_x_emb = val_embedding_all_docs
+    val_y = val_labels
 
     val_y = [item[target] for item in val_y]
     train_y = [item[target] for item in train_y]  # sc = style change
@@ -372,7 +376,7 @@ if __name__ == "__main__":
     folder = sys.argv[1]
     validation_folder = sys.argv[2]
     embeddings_dict = sys.argv[3]
-    predictions_task_1 = task_1()
-    predictions_task_2 = task_2(folder, validation_folder, embeddings_dict)
-    predictions_task_3 = task_3(folder, validation_folder, embeddings_dict)
-    save_to_output_format(predictions_task_1, predictions_task_2, predictions_task_3, text_ids)
+    predictions_task_1 = task_1(folder, validation_folder, embeddings_dict)
+    # predictions_task_2 = task_2(folder, validation_folder, embeddings_dict)
+    # predictions_task_3 = task_3(folder, validation_folder, embeddings_dict)
+    # save_to_output_format(predictions_task_1, predictions_task_2, predictions_task_3, text_ids)

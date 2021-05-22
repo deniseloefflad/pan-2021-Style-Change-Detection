@@ -9,7 +9,8 @@ from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_sc
 from keras.callbacks import EarlyStopping
 from keras.models import load_model
 import tensorflow as tf
-from tensorflow.keras import Model
+from tensorflow.python.keras import optimizers, losses
+import kerastuner as kt
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -35,13 +36,6 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     :return:
     predictions for dataset
     """
-    train_ds = tf.data.Dataset.from_tensor_slices((train_x, train_y))
-    val_ds = tf.data.Dataset.from_tensor_slices((padded_val_x, padded_val_y))
-
-    for i in train_ds:
-        print(i)
-
-    train_x.shape
 
     train_x = np.array(train_x, dtype=float)
     train_y = np.array(train_y)
@@ -49,27 +43,61 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     padded_val_y = np.array(padded_val_y)
     test_x = np.array(test_x)
 
-    # flattened_labels = train_y.flatten()
-    # print(train_y)
-    # print(flattened_labels)
-    # class_weights = calc_class_weights(train_x, train_y)
+    print(train_x.shape)
+
+    def model_builder(hp):
+        model = Sequential()
+        # Tune the number of units in the first Dense layer
+        # Choose an optimal value between 32-512
+        hp_units1 = hp.Int('units1', min_value=32, max_value=512, step=32)
+        hp_units2 = hp.Int('units2', min_value=32, max_value=512, step=32)
+        hp_units3 = hp.Int('units3', min_value=32, max_value=512, step=32)
+
+
+        model.add(tf.keras.Input(shape=(300,)))
+        model.add(layers.Dense(hp_units1, activation='relu'))
+        model.add(layers.Dense(hp_units2, activation='relu'))
+        model.add(layers.Dense(hp_units3, activation='relu'))
+        model.add(layers.Dense(1, activation='sigmoid'))
+   
+
+        # Tune the learning rate for the optimizer
+        # Choose an optimal value from 0.01, 0.001, or 0.0001
+        hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
+
+        model.compile(optimizer=optimizers.adam_v2.Adam(learning_rate=hp_learning_rate),
+                        loss=losses.BinaryCrossentropy(),
+                        metrics=['accuracy'])
+
+
+        return model
 
     es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
-    model = Sequential()
 
-    model.add(layers.Dense(250, input_shape=train_x.shape, activation='relu'))
-    model.add(layers.Dense(100, activation='relu'))
-    model.add(layers.Dense(1, activation='sigmoid'))
-   
-    # # model.add(layers.Masking(mask_value=0, input_shape=train_x.shape))
-    # model.add(layers.LSTM(128, return_sequences=True, return_state=False, input_shape=shape))  # 128 internal units
-    # model.add(layers.Dense(1, activation='sigmoid'))
+    tuner = kt.tuners.Hyperband(model_builder,
+                     objective='val_accuracy',
+                     max_epochs=10,
+                     factor=3,
+                     directory='.',
+                     project_name='task1_pan21')
     
-    model.compile(loss='binary_crossentropy', optimizer='adam')  # , sample_weight_mode='temporal')
-    model.summary()
+    
+    tuner.search(train_x, train_y, validation_data=(padded_val_x, padded_val_y), epochs=1000, callbacks=[es], verbose=2)
 
-    model.fit(train_x, train_y, validation_data=(padded_val_x, padded_val_y), epochs=1000, callbacks=[es], verbose=2)
 
+    # Get the optimal hyperparameters
+    best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
+
+    print(f"""
+    The hyperparameter search is complete. The optimal number of units in the densely-connected
+    layers is 1: {best_hps.get('units1')} 2: {best_hps.get('units2')}, 3: {best_hps.get('units3')} and the optimal learning rate for the optimizer
+    is {best_hps.get('learning_rate')}.
+    """)
+
+    # Build the model with the optimal hyperparameters and train it on the data for 50 epochs
+    model = tuner.hypermodel.build(best_hps)
+    model.fit(train_x, train_y, validation_data=(padded_val_x, padded_val_y), epochs=1000, callbacks=[es])
+    
     return model
 
 
@@ -108,6 +136,7 @@ def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
     model = Sequential()
     model.add(layers.Masking(mask_value=0, input_shape=shape))
     model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
+    model.add(layers.Bidirectional(layers.LSTM(16, return_sequences=True, return_state=False)))  # 128 internal units
     model.add(layers.TimeDistributed(layers.Dense(1, activation='sigmoid')))
     model.compile(loss='binary_crossentropy', optimizer='adam')  # , sample_weight_mode='temporal')
 
