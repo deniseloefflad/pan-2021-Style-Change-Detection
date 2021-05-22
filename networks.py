@@ -73,9 +73,6 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     return model
 
 
-
-
-
 def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
     """
     Build RNN model
