@@ -1,16 +1,17 @@
-import os
-import json
-import nltk
+#import os
+#import json
+#import nltk
 import numpy as np
-import sys
+#import sys
 from keras.models import Sequential
 from keras import layers
 from sklearn.model_selection import train_test_split, GridSearchCV
-from keras.utils import normalize
+#from keras.utils import normalize
 from sklearn.utils import class_weight
-from stylemeasures import get_complexity_measures
+#from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 from keras.callbacks import EarlyStopping
+"""
 import random
 import gensim
 from nltk.tokenize import word_tokenize
@@ -23,12 +24,15 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from imblearn.pipeline import make_pipeline
 from sklearn.cluster import KMeans
+"""
 from keras.models import load_model
 import warnings
 warnings.filterwarnings("ignore")
 
 
 def model_task_1(x_train, y_train, padded_val_x, padded_val_y, x_test):
+    model = []
+    return model
     pass
 
 
@@ -45,7 +49,7 @@ def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
     """
     train_x = np.array(train_x)
     train_y = np.array(train_y)
-    test_x = np.array(test_x)
+    #test_x = np.array(test_x)
     val_x = np.array(val_x)
     val_y = np.array(val_y)
     shape = train_x.shape[1:]
@@ -68,7 +72,7 @@ def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
     model.compile(loss='binary_crossentropy', optimizer='adam')  # , sample_weight_mode='temporal')
 
     model.fit(train_x, train_y, validation_data=(val_x, val_y), epochs=1000, batch_size=batch, callbacks=[es],
-              verbose=2)  # ,
+              verbose=0)  # ,
     # sample_weight=sample_weights)
     return model
 
@@ -88,29 +92,36 @@ def model_task3(preds, train_x, model):
     for z, text in enumerate(preds):
         authors = []
         for i, paragraph in enumerate(text):
-            if i == 0: authors.append(1)
-            elif paragraph[0] == 0: authors.append(authors[i-1])
+            if i == 0:
+                authors.append(1)
+                print('-------first author----------')
+            elif paragraph[0] == 0:
+                print('-------no change author----------')
+                authors.append(authors[i-1])
             else:
                 j = 0
                 data = []
-                text = []
-                text.append(train_x[z][j].tolist())
-                text.append(train_x[z][i].tolist())
-                text = text + (time_steps - 2) * [c]
-                data.append(text)
-                while(model.predict(data)[0][1] >= 0.5) and i < j:
+                txt = []
+                txt.append(train_x[z][j].tolist())
+                txt.append(train_x[z][i].tolist())
+                txt = txt + (time_steps - 2) * [c]
+                data.append(txt)
+                while(model.predict(data)[0][1] >= 0.5) and j < i:
                     j += 1
                     data = []
-                    text = []
-                    text.append(train_x[z][j].tolist())
-                    text.append(train_x[z][i].tolist())
-                    text = text + (time_steps - 2) * [c]
-                    data.append(text)
+                    txt = []
+                    txt.append(train_x[z][j].tolist())
+                    txt.append(train_x[z][i].tolist())
+                    txt = txt + (time_steps - 2) * [c]
+                    data.append(txt)
                 if i == j:
-                    new_author = len(list(set(authors)))
-                    authors.append([new_author])
+                    new_author = len(set(authors))+1
+                    authors.append(new_author)
                 else: authors.append(authors[j])
         authors_texts.append(authors)
+    print('-------------authors model task 3--------------')
+    print(authors_texts)
+    print('------------- stop authors model task 3--------------')
     return authors_texts, model
 
 
@@ -130,10 +141,15 @@ def get_predictions(model, task, test_data):
         for pred in predictions_probs:
             pred_lst = [[1] if x >= 0.5 else [0] for x in pred]
             predictions.append(pred_lst)
+    text = '------------- ' + 'get_predictions ' + task + ' ---------------'
+    print(text)
+    print(predictions)
+    text = '------------- ' + 'stop ' + 'get_predictions ' + task + ' ---------------'
+    print(text)
     return predictions
 
 
-def evaluate(predictions, test_y, scores, multi):
+def evaluate(predictions, test_y, scores, multi): # das kann vor submission weg
     """
     :param multi: Bool whether multi class task or not
     :param predictions: array of predictions
@@ -178,5 +194,5 @@ def get_evaluation(x, val_x, val_y, labels, scores, task, model=None, random_sta
     predictions = get_predictions(model, task, x_test)
     if task == 'task-3':
         predictions, model = model_task3(predictions, x_train, model)
-    evaluations = evaluate(predictions, y_test, scores, multiple_classes)
-    return evaluations, model
+    evaluations = evaluate(predictions, y_test, scores, multiple_classes) # das hier kann vor submission weg
+    return evaluations, predictions, model
