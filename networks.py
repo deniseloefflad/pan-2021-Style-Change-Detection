@@ -25,7 +25,7 @@ def calc_class_weights(x, y):
     return sample_weights
 
 
-def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
+def model_task_1(train_x, train_y, padded_val_x, padded_val_y):
     """
     Build RNN model
     :param train_x: train x data
@@ -41,9 +41,6 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     train_y = np.array(train_y)
     padded_val_x = np.array(padded_val_x)
     padded_val_y = np.array(padded_val_y)
-    test_x = np.array(test_x)
-
-    print(train_x.shape)
 
     def model_builder(hp):
         model = Sequential()
@@ -101,7 +98,7 @@ def model_task_1(train_x, train_y, padded_val_x, padded_val_y, test_x):
     return model
 
 
-def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
+def lstm_task_2(train_x, train_y, val_x, val_y):
     """
     Build RNN model
     :param train_x: train x data
@@ -117,7 +114,7 @@ def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
     #test_x = np.array(test_x)
     val_x = np.array(val_x)
     val_y = np.array(val_y)
-    shape = train_x.shape[1:]
+    shape = train_x.shape[-1]
 
     unique_labels = np.array([0, 1])
     flattened_labels = train_y.flatten()
@@ -127,11 +124,11 @@ def lstm_task_2(train_x, train_y, val_x, val_y, test_x):
     # shape can be one dimensional iff target is multi-author
     sample_weights = sample_weights.reshape((train_x.shape[1], train_x.shape[0])).transpose()
 
-    batch = 1
+    batch = 5
 
     es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
     model = Sequential()
-    model.add(layers.Masking(mask_value=0, input_shape=shape))
+    model.add(layers.Masking(mask_value=0, input_shape=(None, shape)))
     model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
     model.add(layers.Bidirectional(layers.LSTM(16, return_sequences=True, return_state=False)))  # 128 internal units
     model.add(layers.TimeDistributed(layers.Dense(1, activation='sigmoid')))
@@ -160,9 +157,7 @@ def model_task3(preds, train_x, model):
         for i, paragraph in enumerate(text):
             if i == 0:
                 authors.append(1)
-                print('-------first author----------')
             elif paragraph[0] == 0:
-                print('-------no change author----------')
                 authors.append(authors[i-1])
             else:
                 j = 0
@@ -185,9 +180,6 @@ def model_task3(preds, train_x, model):
                     authors.append(new_author)
                 else: authors.append(authors[j])
         authors_texts.append(authors)
-    print('-------------authors model task 3--------------')
-    print(authors_texts)
-    print('------------- stop authors model task 3--------------')
     return authors_texts, model
 
 
@@ -211,11 +203,6 @@ def get_predictions(model, task, test_data):
         for pred in predictions_probs:
             pred_lst = [[1] if x >= 0.5 else [0] for x in pred]
             predictions.append(pred_lst)
-    text = '------------- ' + 'get_predictions ' + task + ' ---------------'
-    print(text)
-    print(predictions)
-    text = '------------- ' + 'stop ' + 'get_predictions ' + task + ' ---------------'
-    print(text)
     return predictions
 
 
@@ -252,17 +239,20 @@ def get_evaluation(x, val_x, val_y, labels, scores, task, model=None, random_sta
     :return:
     evluation scores
     """
-    x_train, x_test, y_train, y_test = train_test_split(x, labels, test_size=0.2, random_state=random_state)
+    evaluations = []
+    predictions = []
+
+    #x_train, x_test, y_train, y_test = train_test_split(x, labels, test_size=0.2, random_state=random_state)
     if task == 'task-1':
-        model = model_task_1(x_train, y_train, val_x, val_y, x_test)
+        model = model_task_1(x, labels, val_x, val_y)
         multiple_classes = False
     elif task == 'task-2':
-        model = lstm_task_2(x_train, y_train, val_x, val_y, x_test)
+        model = lstm_task_2(x, labels, val_x, val_y)
         multiple_classes = False
     elif task == 'task-3':
         multiple_classes = True
-    predictions = get_predictions(model, task, x_test)
+    predictions = get_predictions(model, task, val_x)
     if task == 'task-3':
-        predictions, model = model_task3(predictions, x_train, model)
-    evaluations = evaluate(predictions, y_test, scores, multiple_classes) # das hier kann vor submission weg
+        predictions, model = model_task3(predictions, val_x, model)
+    evaluations = evaluate(predictions, val_y, scores, multiple_classes) # das hier kann vor submission weg
     return evaluations, predictions, model
