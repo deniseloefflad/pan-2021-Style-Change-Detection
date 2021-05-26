@@ -378,8 +378,11 @@ def task_3(folder, validation_folder, embeddings_dict, train):
         print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
         print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
     else:
-        predictions_style_change = get_predictions(model_compl, task, normalized_compl)
-        predictions_style_change = get_predictions(model_emb, task, normalized_embeddings)
+        # use this for predictions with complexity measures
+        #predictions_style_change = get_predictions(model_compl, task, normalized_compl)
+        # use this for predictions with embeddings
+        #predictions_style_change = get_predictions(model_emb, task, normalized_embeddings)
+        # use this for combined prediction
         predictions_style_change = get_predictions(model_combined, task, combined_x)
         predictions = model_task3(predictions_style_change, combined_x, model_combined)
 
