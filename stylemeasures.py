@@ -3,7 +3,8 @@ from nltk import word_tokenize, Counter, pos_tag, sent_tokenize
 from math import sqrt
 import numpy as np
 import re
-
+import nltk
+nltk.download('stopwords')
 
 stop_words = stopwords.words('english')
 vowels = ['a', 'e', 'i', 'o', 'u', 'y']

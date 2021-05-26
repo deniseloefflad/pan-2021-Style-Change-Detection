@@ -124,13 +124,13 @@ def lstm_task_2(train_x, train_y, val_x, val_y):
     # shape can be one dimensional iff target is multi-author
     sample_weights = sample_weights.reshape((train_x.shape[1], train_x.shape[0])).transpose()
 
-    batch = 5
+    batch = 1
 
     es = EarlyStopping(monitor='val_loss', patience=5, verbose=1, mode="min", restore_best_weights=True)
     model = Sequential()
     model.add(layers.Masking(mask_value=0, input_shape=(None, shape)))
     model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
-    model.add(layers.Bidirectional(layers.LSTM(16, return_sequences=True, return_state=False)))  # 128 internal units
+    model.add(layers.Bidirectional(layers.LSTM(128, return_sequences=True, return_state=False)))  # 128 internal units
     model.add(layers.TimeDistributed(layers.Dense(1, activation='sigmoid')))
     model.compile(loss='binary_crossentropy', optimizer='adam')  # , sample_weight_mode='temporal')
 

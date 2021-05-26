@@ -1,16 +1,11 @@
 #!/usr/bin/env python
 
 import os
-
-# add folder to python path
-dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(dir_path)
-
+import sys
 import argparse
 import json
 import nltk
 import numpy as np
-import sys
 from keras.utils import normalize
 from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
@@ -452,11 +447,12 @@ if __name__ == "__main__":
         validation_folder = args.train[1]
         embeddings_dict = args.train[2]
         predictions_task_1 = task_1(folder, validation_folder, embeddings_dict, True)
-        predictions_task_2 = task_2(folder, validation_folder, embeddings_dict, True)
-        predictions_task_3 = task_3(folder, validation_folder, embeddings_dict, True)
+
+        #predictions_task_2 = task_2(folder, validation_folder, embeddings_dict, True)
+        #predictions_task_3 = task_3(folder, validation_folder, embeddings_dict, True)
     else: #prediction mode
         input = args.input
-        embeddings_file = 'cc.en.300.vec.gz'
+        embeddings_file = '/home/lofflad21/pan-2021-Style-Change-Detection/embeddings.vec.gz'
         
         predictions_task_1 = task_1(input, input, embeddings_file, False)
         predictions_task_2 = np.array(task_2(input, input, embeddings_file, False))
