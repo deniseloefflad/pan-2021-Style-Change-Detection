@@ -165,7 +165,7 @@ def model_task3(preds, train_x, model):
                 txt = []
                 txt.append(train_x[z][j].tolist())
                 txt.append(train_x[z][i].tolist())
-                txt = txt + (time_steps - 2) * [c]
+                txt = txt #+ (time_steps - 2) * [c]
                 data.append(txt)
                 while(model.predict(data)[0][1] >= 0.5) and j < i:
                     j += 1
