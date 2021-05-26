@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 
 import os
+
+# add folder to python path
+dir_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(dir_path)
+
 import argparse
 import json
 import nltk
