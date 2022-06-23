@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import sys
 import argparse
 import json
 import nltk
@@ -10,10 +9,9 @@ from keras.utils import normalize
 from stylemeasures import get_complexity_measures
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 import gensim
-from networks import evaluate, get_evaluation, get_predictions, model_task3#, lstm_task_2
+from networks import evaluate, get_evaluation, get_predictions, model_task3, trim_predictions#, lstm_task_2
 from nltk.tokenize import word_tokenize
 from keras.models import load_model
-import fasttext.util
 import warnings
 warnings.filterwarnings("ignore")
 nltk.download('punkt')
@@ -28,6 +26,8 @@ compl_measures_all = text_ids = labels = embedding_all_docs = None
 val_compl_measures = val_text_ids = val_labels = val_embedding_all_docs = None
 
 last_target = None
+
+original_shape = []
 
 
 def get_labels(filename, return_labels = None):
@@ -122,8 +122,9 @@ def read_data(folder, embedding_model, target):
                     #all_text_ids.append(text_ids)
                     i += 1
                 filename_json = os.path.join(folder, 'truth-' + text_filename.replace('txt', 'json'))
-                labels_json = get_labels(filename_json)
-                labels.append(labels_json)
+                if os.path.exists(filename_json):
+                    labels_json = get_labels(filename_json)
+                    labels.append(labels_json)
     return complexity_measures_all_docs, all_text_ids, labels, embedding_all_docs
 
 
@@ -135,10 +136,11 @@ def _pad(x, labels, padding_x, padding_y, pad_len, target):
     for i, elem in enumerate(x):
         start_size = len(elem)
         elem += (pad_len - start_size) * [padding_x]
-        if target == 'multi-author':
-            elem_y = labels[i] #* start_size + (pad_len - start_size) * [padding_y]
-        elif (target == 'changes') or (target == 'paragraph-authors'):
-            elem_y = labels[i] + (pad_len - len(labels[i])) * [padding_y]
+        if len(labels) > 0:
+            if target == 'multi-author':
+                elem_y = labels[i] #* start_size + (pad_len - start_size) * [padding_y]
+            elif (target == 'changes') or (target == 'paragraph-authors'):
+                elem_y = labels[i] + (pad_len - len(labels[i])) * [padding_y]
         padded_x.append(elem)
         padded_y.append(elem_y)
     return padded_x, padded_y
@@ -262,6 +264,11 @@ def task_2(folder, validation_folder, embeddings_dict, train):
 
     initialize_global_params(folder, validation_folder, embeddings_dict, target)
 
+    global original_shape
+    for d in compl_measures_all:
+        original_shape.append(np.array(d).shape[0])
+
+
     if val_labels != None:
         val_labels_target = [item[target] for item in val_labels]
 
@@ -298,20 +305,20 @@ def task_2(folder, validation_folder, embeddings_dict, train):
     model_emb_name = 'task2-embeddings-model.h5'
     model_combined_name = 'task2-combined-model.h5'
     if train:
-        eval_scores_compl, predictions, model_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y,
-                                                                    padded_labels, scores, task)
-        eval_scores_embeddings, predictions, model_emb = get_evaluation(normalized_embeddings, normalized_val_emb,
-                                                                        padded_val_y_embeddings,padded_labels, scores, task)
+#       eval_scores_compl, predictions, model_compl = get_evaluation(normalized_compl, normalied_validation, padded_val_y,
+#                                                                  padded_labels, scores, task)
+        # eval_scores_embeddings, predictions, model_emb = get_evaluation(normalized_embeddings, normalized_val_emb,
+        #                                                                 padded_val_y_embeddings,padded_labels, scores, task)
         combined_scores, predictions, model_combined = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels,
-                                                                    scores, task)
+                                                                        scores, task)
 
-        model_compl.save(model_compl_name)
-        model_emb.save(model_emb_name)
-        model_combined.save(model_combined_name)
+        # model_compl.save(model_compl_name)
+        # model_emb.save(model_emb_name)
+        # model_combined.save(model_combined_name)
 
         #----------------- print results
-        print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
-        print("results embeddings precision, recall, f1, accuracy: " + str(eval_scores_embeddings))
+        # print("results complexity measures precision, recall, f1, accuracy: " + str(eval_scores_compl))
+        # print("results embeddings precision, recall, f1, accuracy: " + str(eval_scores_embeddings))
         print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
     else:
         model_compl = load_model(model_compl_name)
@@ -320,7 +327,13 @@ def task_2(folder, validation_folder, embeddings_dict, train):
 
         #predictions = get_predictions(model_compl, task, normalized_compl)
         #predictions = get_predictions(model_emb, task, normalized_embeddings)
-        predictions = get_predictions(model_combined, task, combined_x)
+        predictions = get_predictions(model_combined, task, combined_x)  
+        predictions = trim_predictions(predictions, original_shape)
+        # remove leading 1 from predictions
+        for i, d in enumerate(predictions):
+            predictions[i] = d[1:]
+
+
     return predictions
 
 
@@ -338,8 +351,8 @@ def task_3(folder, validation_folder, embeddings_dict, train):
     val_labels_target = [item[target] for item in val_labels]
     labels_authors = [item[target] for item in labels]
 
-    model_compl = load_model('task2-complexity-model.h5')
-    model_emb = load_model('task2-embeddings-model.h5')
+    # model_compl = load_model('task2-complexity-model.h5')
+    # model_emb = load_model('task2-embeddings-model.h5')
     model_combined = load_model('task2-combined-model.h5')
 
     #pad complexity measures, pad embeddings and pad validation data
@@ -360,17 +373,19 @@ def task_3(folder, validation_folder, embeddings_dict, train):
     combined_x = np.concatenate((np.array(normalized_embeddings), np.array(normalized_compl)), axis=2)
     combined_val = np.concatenate((np.array(normalized_val_emb), np.array(normalied_validation)), axis=2)
 
+    global original_shape
+
     if train:
             
-        complexity_scores, predictions, model = get_evaluation(normalized_compl, normalied_validation, padded_val_y,
-                                                            padded_labels, scores, task, model_compl)
-        embedding_scores, predictions, model = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y,
-                                                            padded_labels, scores, task, model_emb)
-        combined_scores, predictions, model = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, scores,
-                                                            task, model_combined)
+        # complexity_scores, predictions, model = get_evaluation(normalized_compl, normalied_validation, padded_val_y,
+        #                                                     padded_labels, scores, task, model_compl)
+        # embedding_scores, predictions, model = get_evaluation(normalized_embeddings, normalized_val_emb, padded_val_y,
+        #                                                     padded_labels, scores, task, model_emb)
+        combined_scores, predictions, model = get_evaluation(combined_x, combined_val, padded_val_y, padded_labels, 
+                                                                scores, task, model_combined)
         print('---------LSTM Task 3--------------')
-        print("results complexity precision, recall, f1, accuracy: " + str(complexity_scores))
-        print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
+        # print("results complexity precision, recall, f1, accuracy: " + str(complexity_scores))
+        # print("results embeddings precision, recall, f1, accuracy: " + str(embedding_scores))
         print("results combined precision, recall, f1, accuracy: " + str(combined_scores))
     else:
         # use this for predictions with complexity measures
@@ -379,7 +394,11 @@ def task_3(folder, validation_folder, embeddings_dict, train):
         #predictions_style_change = get_predictions(model_emb, task, normalized_embeddings)
         # use this for combined prediction
         predictions_style_change = get_predictions(model_combined, task, combined_x)
-        predictions = model_task3(predictions_style_change, combined_x, model_combined)
+        predictions = model_task3(predictions_style_change, combined_x, model_combined)[0] #remove wrapper list
+
+        
+
+        predictions = trim_predictions(predictions, original_shape)
 
     
     return predictions
@@ -408,8 +427,8 @@ def save_to_output_format(predicts_task_1, predicts_task_2, predicts_task_3, txt
     for num_id, spec_id in enumerate(txt_ids):
         filename = filename_base + str(spec_id) + file_ending
         txt_solutions = {
-            "multi-author": predicts_task_1[num_id],
-            "changes": list(map(int, predicts_task_2[num_id].flatten())),
+            # "multi-author": predicts_task_1[num_id],
+            # "changes": list(map(int, np.array(predicts_task_2[num_id]).flatten())),
             "paragraph-authors": list(map(int, predicts_task_3[num_id]))
         }
 
@@ -448,15 +467,17 @@ if __name__ == "__main__":
         embeddings_dict = args.train[2]
         predictions_task_1 = task_1(folder, validation_folder, embeddings_dict, True)
 
-        #predictions_task_2 = task_2(folder, validation_folder, embeddings_dict, True)
-        #predictions_task_3 = task_3(folder, validation_folder, embeddings_dict, True)
+        predictions_task_2 = task_2(folder, validation_folder, embeddings_dict, True)
+        predictions_task_3 = task_3(folder, validation_folder, embeddings_dict, True)
     else: #prediction mode
         input = args.input
-        embeddings_file = '/home/lofflad21/pan-2021-Style-Change-Detection/embeddings.vec.gz'
+        embeddings_file = 'embeddings.vec.gz'
         
-        predictions_task_1 = task_1(input, input, embeddings_file, False)
-        predictions_task_2 = np.array(task_2(input, input, embeddings_file, False))
-        predictions_task_3 = task_3(input, input, embeddings_file, False)[0]
+        # predictions_task_1 = task_1(input, input, embeddings_file, False)
+        # predictions_task_2 = np.array(task_2(input, input, embeddings_file, False))
+        predictions_task_1 = None
+        predictions_task_2 = None
+        predictions_task_3 = task_3(input, input, embeddings_file, False)
 
         save_to_output_format(predictions_task_1, predictions_task_2, predictions_task_3, text_ids, args.output)
 

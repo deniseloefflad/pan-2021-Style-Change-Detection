@@ -224,6 +224,12 @@ def evaluate(predictions, test_y, scores, multi): # das kann vor submission weg
         else: eval_scores.append(score(np.array(predictions).flatten(), np.array(test_y).flatten()))
     return eval_scores
 
+def trim_predictions(pred, orig_shape):
+    for i, p in enumerate(pred):
+        pred[i] = p[:orig_shape[i]]
+        print(f"pred {p} orig shape {orig_shape[i]} pred after {pred[i]}")
+
+    return pred
 
 def get_evaluation(x, val_x, val_y, labels, scores, task, model=None, random_state=None):
     """
